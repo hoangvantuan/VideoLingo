@@ -102,5 +102,44 @@ class VertexTtsTests(unittest.TestCase):
         backend.assert_called_once_with("Xin chào các bạn", target)
 
 
+class VertexVoiceListTests(unittest.TestCase):
+    VOICES = {"voices": [
+        {"languageCodes": ["vi-VN"], "name": "vi-VN-Wavenet-A", "ssmlGender": "FEMALE"},
+        {"languageCodes": ["vi-VN"], "name": "vi-VN-Chirp3-HD-Charon", "ssmlGender": "MALE"},
+        {"languageCodes": ["en-US"], "name": "en-US-Chirp3-HD-Aoede", "ssmlGender": "FEMALE"},
+        {"languageCodes": ["vi-VN"], "name": "vi-VN-Chirp3-HD-Aoede", "ssmlGender": "FEMALE"},
+        {"languageCodes": ["vi-VN"], "name": "vi-VN-Neural2-A", "ssmlGender": "FEMALE"},
+    ]}
+
+    def setUp(self):
+        patcher = patch.object(vertex_tts, "request_headers", return_value={"Authorization": "Bearer tok"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_voices_are_listed_for_the_language_with_chirp3_hd_first(self):
+        with patch.object(vertex_tts.requests, "get", return_value=Reply(200, self.VOICES)) as get:
+            voices = vertex_tts.list_voices("vi-VN")
+        self.assertEqual([voice["name"] for voice in voices], [
+            "vi-VN-Chirp3-HD-Aoede", "vi-VN-Chirp3-HD-Charon", "vi-VN-Neural2-A", "vi-VN-Wavenet-A"])
+        self.assertEqual(get.call_args.args[0], "https://texttospeech.googleapis.com/v1/voices")
+        self.assertEqual(get.call_args.kwargs["params"], {"languageCode": "vi-VN"})
+        self.assertEqual(get.call_args.kwargs["headers"], {"Authorization": "Bearer tok"})
+
+    def test_voice_list_error_is_reported(self):
+        body = {"error": {"code": 403, "message": "Permission denied"}}
+        with patch.object(vertex_tts.requests, "get", return_value=Reply(403, body)), \
+                self.assertRaisesRegex(RuntimeError, "HTTP 403.*Setup Google Cloud"):
+            vertex_tts.list_voices("vi-VN")
+
+    def test_default_voice_prefers_the_built_in_default_then_any_chirp3_hd(self):
+        names = lambda *items: [{"name": name} for name in items]
+        self.assertEqual(vertex_tts.default_voice(names("vi-VN-Wavenet-A", "vi-VN-Chirp3-HD-Aoede",
+                                                        "vi-VN-Chirp3-HD-Charon")), "vi-VN-Chirp3-HD-Aoede")
+        self.assertEqual(vertex_tts.default_voice(names("vi-VN-Wavenet-A", "vi-VN-Chirp3-HD-Charon")),
+                         "vi-VN-Chirp3-HD-Charon")
+        self.assertEqual(vertex_tts.default_voice(names("vi-VN-Wavenet-A")), "vi-VN-Wavenet-A")
+        self.assertEqual(vertex_tts.default_voice([]), "vi-VN-Chirp3-HD-Aoede")
+
+
 if __name__ == "__main__":
     unittest.main()
