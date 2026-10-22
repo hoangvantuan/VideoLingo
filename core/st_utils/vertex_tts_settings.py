@@ -63,6 +63,12 @@ def render():
     if abs(chosen - shown) > 1e-9:
         values["vertex_tts.speed"] = round(chosen, 2)
 
+    workers = int(load_key_or("vertex_tts.max_workers", 4) or 4)  # the fallback of _10_gen_audio
+    chosen_workers = st.number_input("Vertex parallel requests (max_workers)", min_value=1, value=workers, step=1,
+                                     help="Cloud TTS requests sent at once; replaces max_workers and tts_max_workers")
+    if int(chosen_workers) != workers:
+        values["vertex_tts.max_workers"] = int(chosen_workers)
+
     if values:
         save_settings(values)
         st.rerun()

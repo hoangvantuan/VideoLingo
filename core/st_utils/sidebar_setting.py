@@ -213,6 +213,8 @@ def page_setting():
         from core.st_utils import llm_profile_setting  # custom
         if llm_profile_setting.render():  # custom
             custom_llm_inputs()  # custom
+        from core.st_utils import llm_profile_editor  # custom: F7/F8 profile editor and vertex: section (#11)
+        llm_profile_editor.render()  # custom
     with st.expander(t("Subtitles Settings"), expanded=True):
         c1, c2 = st.columns(2)
         with c1:
