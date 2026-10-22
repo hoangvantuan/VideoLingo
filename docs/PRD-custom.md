@@ -140,6 +140,24 @@ Lượng xử lý chưa biết, nên cần số liệu để đánh giá:
   - Bước nào là nút cổ chai.
 - Mục tiêu: sau khoảng 10 video có đủ số liệu để quyết định có cần nâng cấp phần cứng hoặc đổi TTS hay không.
 
+### F7. LLM profile — **P0**
+Spec: issue #1. Quyết định: `docs/adr/0001-llm-profiles.md`.
+- Khai báo nhiều **LLM profile** có tên trong `llm_profiles` (Provider, model, cách lấy key, tùy chọn ghi đè `llm_support_json`, `max_workers`, `reasoning_effort`). Chọn **Profile đang dùng** bằng `api.profile`.
+- `api.profile` trống thì dùng **Profile custom** (mục `api:` gốc), chạy y như trước. Khóa ghi đè thiếu thì lấy giá trị chung.
+- Key của profile: biến môi trường trước, rồi tới key trong profile. Thiếu profile hoặc thiếu key thì báo lỗi rõ ràng.
+- Số luồng Khâu Dịch (chia câu, dịch, chia phụ đề) theo `max_workers` của Profile đang dùng. Sidebar có ô chọn Profile đang dùng, hiện Provider và model.
+- Cấu hình chi tiết: `CUSTOM.md` mục "Cấu hình F7".
+
+### F8. Provider Vertex cho Khâu Dịch — **P0**
+- Profile `provider: vertex` gọi Gemini qua endpoint tương thích OpenAI của Vertex AI, xác thực bằng service account (`GOOGLE_APPLICATION_CREDENTIALS`), token tự làm mới.
+- URL dựng từ `vertex.project` / `vertex.location_llm` (mặc định `global`), không qua `normalize_base_url`.
+- Profile có sẵn: `gemini-lite` (`google/gemini-3.5-flash-lite`) và `gemini-flash` (`google/gemini-3.8-flash`, `reasoning_effort: low`). JSON mode bật.
+
+### F9. Lồng tiếng bằng Vertex (`vertex_tts`) — **P1**
+- Phương thức lồng tiếng mới dùng Cloud Text-to-Speech (REST `text:synthesize`), credential Google dùng chung với F8.
+- Chọn giọng `vi-VN` trên Dubbing Settings, mặc định nhóm Chirp 3 HD; tốc độ đọc trong khoảng an toàn; audio WAV (LINEAR16).
+- `vertex_tts.max_workers` (mặc định 4) thay số luồng Khâu Lồng tiếng khi dùng `vertex_tts`.
+
 ### F10. Lồng tiếng kiểu Thuyết minh — **P1**
 - Video lồng tiếng giữ âm thanh gốc (cả giọng gốc) ở mức nhỏ cố định, giọng Việt đè lên trên.
 - Khóa `original_volume` (0–1, nhân thẳng lên track âm thanh của file video). Chỉnh qua `config.yaml`, field `original_volume` của `POST /run`, hoặc thanh trượt trong Dubbing Settings. Mặc định trong code `0` = hành vi upstream; config của fork đặt `0.25`.
@@ -163,9 +181,13 @@ Lượng xử lý chưa biết, nên cần số liệu để đánh giá:
 ```
 YouTube/file ──► VideoLingo (pc, CPU, Streamlit :8501 qua Tailscale)
                   ├─ ASR ───────► Soniox API (cloud)            [F1]
-                  ├─ Dịch ──────► OpenRouter (cloud)            [F2]
+                  ├─ Dịch ──────► LLM profile                   [F7]
+                  │                 ├─ OpenRouter (cloud)       [F2]
+                  │                 └─ Vertex AI Gemini (cloud) [F8]
                   ├─ Phụ đề ────► ffmpeg libx264 (local)
                   ├─ TTS ───────► VieNeu-TTS :8000 (local)      [F3]
+                  │             │ Soniox TTS (cloud)            [F6]
+                  │             └ Vertex AI Cloud TTS (cloud)   [F9]
                   └─ Log ───────► output/log/usage.jsonl        [F5]
 ```
 
@@ -225,3 +247,4 @@ YouTube/file ──► VideoLingo (pc, CPU, Streamlit :8501 qua Tailscale)
 
 1. Model OpenRouter cụ thể: sẽ chốt sau khi chạy thử ở M0.
 2. Lượng xử lý thực tế: sẽ đánh giá sau M4 dựa trên số liệu của F5.
+3. Tự chuyển sang LLM profile khác khi Profile đang dùng lỗi hoặc bị giới hạn (429), theo một chuỗi fallback: chưa làm ở F7–F9, cân nhắc sau khi có số liệu lỗi thực tế.

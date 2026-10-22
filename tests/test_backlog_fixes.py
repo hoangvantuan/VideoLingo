@@ -343,6 +343,8 @@ def _check_api(monkeypatch, tmp_path, outcome, key="sk-test"):
         return SimpleNamespace(chat=SimpleNamespace(completions=completions))
 
     monkeypatch.setattr(module, "load_key", config.get)
+    monkeypatch.setattr("core.utils.llm_profile.load_key", config.get)  # custom
+    monkeypatch.setattr("core.utils.llm_profile.load_key_or", config.get)  # custom
     monkeypatch.setattr(module, "OpenAI", fake_openai)
     monkeypatch.setattr(module, "GPT_LOG_FOLDER", str(tmp_path))
     return sidebar.check_api(), completions, seen
