@@ -195,3 +195,18 @@ def test_vertex_project_and_location_are_written_to_a_config_without_a_vertex_se
     assert load_key("vertex.project") == "my-project"
     assert load_key("vertex.location_llm") == "us-central1"
     assert load_key_or("api.model", None) == "custom-model"
+
+
+def test_a_profile_declared_without_fields_can_be_completed(config):
+    config(WITH_PROFILES.replace("""      local:
+        provider: openai
+        model: 'qwen3'
+        base_url: 'http://localhost:8000/v1'
+""", "      local:\n"))
+    at = opened()
+    at = field(at, "Sửa profile").select("local").run()
+    fill(at, **{"Model": "qwen3", "Base URL": "http://localhost:8000/v1"})
+    at = button(at, "💾 Lưu profile").click().run()
+    assert not at.exception
+    assert dict(load_key("llm_profiles.local")) == {
+        "provider": "openrouter", "model": "qwen3", "base_url": "http://localhost:8000/v1"}

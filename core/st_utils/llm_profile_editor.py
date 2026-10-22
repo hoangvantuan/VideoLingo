@@ -65,11 +65,13 @@ def _write(profiles, name, entry, original):
                 profiles.insert(position, name, entry)
             else:
                 profiles[name] = entry
-        else:
+        elif isinstance(profiles[original], dict):
             stored = profiles[original]
             for key in [key for key in stored if key not in entry]:
                 del stored[key]
             stored.update(entry)
+        else:
+            profiles[original] = entry  # declared without fields (`name:` alone)
     else:
         profiles[name] = entry
     config_fields.save("llm_profiles", profiles)
