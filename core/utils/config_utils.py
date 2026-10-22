@@ -1,9 +1,20 @@
 from ruamel.yaml import YAML
+import os
+import shutil
 import threading
 import unicodedata
 
 CONFIG_PATH = 'config.yaml'
 lock = threading.Lock()
+
+
+def ensure_config():
+    """config.yaml is not tracked by git; a fresh checkout starts from config.example.yaml beside it."""
+    if os.path.exists(CONFIG_PATH):
+        return
+    example = os.path.join(os.path.dirname(CONFIG_PATH), 'config.example.yaml')
+    if os.path.exists(example):
+        shutil.copyfile(example, CONFIG_PATH)
 
 yaml = YAML()
 yaml.preserve_quotes = True
@@ -14,6 +25,7 @@ yaml.preserve_quotes = True
 
 def load_key(key):
     with lock:
+        ensure_config()
         with open(CONFIG_PATH, 'r', encoding='utf-8') as file:
             data = yaml.load(file)
 
@@ -36,6 +48,7 @@ def load_key_or(key, default):
 def update_key(key, new_value, add_missing=False):
     """Set an existing key; add_missing=True also creates a new leaf (settings added after the user's config.yaml)."""
     with lock:
+        ensure_config()
         with open(CONFIG_PATH, 'r', encoding='utf-8') as file:
             data = yaml.load(file)
 

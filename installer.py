@@ -675,6 +675,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # config.yaml is not tracked by git; start a fresh checkout from the example.
+    if not (ROOT / "config.yaml").exists() and (ROOT / "config.example.yaml").exists():
+        shutil.copyfile(ROOT / "config.example.yaml", ROOT / "config.yaml")
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.no_launch:
