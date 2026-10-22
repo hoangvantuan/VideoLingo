@@ -167,3 +167,13 @@ def test_empty_profile_name_uses_the_custom_profile_even_with_profiles_declared(
     _, client, request = ask()
     assert client == {"api_key": "custom-key", "base_url": "https://api.example.com/v1"}
     assert request["model"] == "custom-model"
+
+
+@pytest.mark.parametrize("profile", ["nope", "keyless"])
+def test_config_error_reaches_the_operator_without_retries(setup, monkeypatch, profile):
+    sleeps = []
+    monkeypatch.setattr("core.utils.decorator.time.sleep", sleeps.append)
+    setup(WITH_PROFILES.format(profile=profile))
+    with pytest.raises(ValueError):
+        ask_gpt_module.ask_gpt("hello", resp_type="json")
+    assert sleeps == []

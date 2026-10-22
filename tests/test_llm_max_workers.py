@@ -25,6 +25,10 @@ CONFIG = """
         provider: openrouter
         model: 'vendor/other'
         api_key: 'config-key'
+      gemini:
+        provider: vertex
+        model: 'google/gemini-3.5-flash-lite'
+        max_workers: 2
 """
 
 
@@ -52,3 +56,15 @@ def test_profile_without_max_workers_uses_the_general_value(setup):
 def test_custom_profile_uses_the_general_value(setup):
     setup("")
     assert llm_max_workers() == 4
+
+
+def test_vertex_profile_thread_count_needs_no_google_credential(setup, monkeypatch):
+    from core.utils import google_credentials
+
+    def no_credential():
+        raise AssertionError("the Google credential must not be loaded for a thread count")
+
+    google_credentials.reset()
+    monkeypatch.setattr(google_credentials, "_load_default", no_credential)
+    setup("gemini")
+    assert llm_max_workers() == 2

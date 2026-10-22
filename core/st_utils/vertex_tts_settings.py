@@ -24,16 +24,16 @@ def _voice_label(voice):
 
 
 def render():
-    language = load_key_or("vertex_tts.language", vertex_tts.LANGUAGE) or vertex_tts.LANGUAGE
+    language = vertex_tts.configured_language()
     configured = str(load_key_or("vertex_tts.voice", "") or "")
     values = {}
 
     voices = []
     try:
         voices = _voices(language)
-    except GoogleCredentialError as error:
-        st.info(f"Vertex AI needs a Google credential: set GOOGLE_APPLICATION_CREDENTIALS to the "
-                f"service-account key JSON and restart VideoLingo ({error})")
+    except GoogleCredentialError as error:  # missing credential or project: the message says which
+        st.info(f"{error}. The voice name can be typed meanwhile; restart VideoLingo after changing "
+                f"GOOGLE_APPLICATION_CREDENTIALS.")
     except Exception as error:
         st.warning(f"Could not load Cloud TTS voices: {error}")
     current = configured or vertex_tts.default_voice(voices)
@@ -48,7 +48,7 @@ def render():
                              format_func=lambda name: _voice_label(by_name.get(name, {"name": name})))
     else:
         voice = st.text_input("Vertex voice", value=current, help="Cloud TTS voice name, e.g. vi-VN-Chirp3-HD-Charon")
-    if voice and voice != current:
+    if voice and voice != configured:  # an empty voice saves the preselected one, so the dub uses what is shown
         values["vertex_tts.voice"] = voice
 
     entered = st.text_input("Vertex speech language (BCP-47)", value=language,
@@ -56,7 +56,7 @@ def render():
     if entered.strip() and entered.strip() != language:
         values["vertex_tts.language"] = entered.strip()
 
-    speed = float(load_key_or("vertex_tts.speed", 1.0) or 1.0)
+    speed = vertex_tts.configured_speed()
     shown = min(MAX_SPEED, max(MIN_SPEED, speed))
     chosen = st.slider("Vertex speech speed", MIN_SPEED, MAX_SPEED, value=shown, step=0.05,
                        help="A hand-edited speed outside this range is kept until the slider is moved")
