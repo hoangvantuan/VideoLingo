@@ -5,7 +5,10 @@ from rich import print as rprint
 
 
 def original_volume(load_key):
-    """Factor applied to the original audio track; 0 (or a missing key) keeps the upstream merge."""
+    """Factor applied to the original audio track; 0 (or a missing key) keeps the upstream merge.
+
+    `load_key` is passed in so the merge step and the slider share this rule while each keeps its own
+    reader (the merge tests replace the `load_key` of the merge step)."""
     try:
         return float(load_key('original_volume') or 0)
     except KeyError:
@@ -33,7 +36,7 @@ def mix_original(load_key, video_file):
     return volume
 
 
-def mix_filter(volume, dub_input=1):
+def mix_filter(volume):
     """Original track at a fixed level under the dub; normalize=0 so amix does not halve the dub."""
     return (f'[0:a:0]volume={volume:g}[orig];'
-            f'[orig][{dub_input}:a]amix=inputs=2:duration=first:dropout_transition=3:normalize=0[a]')
+            f'[orig][1:a]amix=inputs=2:duration=first:dropout_transition=3:normalize=0[a]')

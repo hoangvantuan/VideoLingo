@@ -5,11 +5,12 @@ The label is plain text, not a translation key, so no locale file has to change.
 
 import streamlit as st
 
-from core.utils.config_utils import load_key_or, update_key
+from core.utils.config_utils import load_key, update_key
+from core.utils.original_audio import original_volume
 
 
 def render():
-    current = float(load_key_or("original_volume", 0) or 0)
+    current = original_volume(load_key)
     volume = round(st.slider(
         "Âm lượng gốc (Thuyết minh)", min_value=0.0, max_value=1.0, value=current, step=0.05,
         help="Mức âm thanh gốc của video giữ lại dưới giọng lồng tiếng (0.25 = 25%). "
