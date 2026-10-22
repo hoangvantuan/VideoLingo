@@ -1,7 +1,7 @@
 """F7 (custom) — picker for the Profile đang dùng in the LLM Configuration of the sidebar, see CUSTOM.md.
 
-Profiles are added, edited and removed in config.yaml; the sidebar only chooses one and writes
-its name to api.profile. Labels are plain text, not translation keys, so no locale file changes.
+This picker only chooses a profile and writes its name to api.profile; profiles are added, edited
+and removed by llm_profile_editor (the toggle under it) or in config.yaml. Labels are plain text, not translation keys, so no locale file changes.
 """
 
 import streamlit as st
@@ -27,7 +27,7 @@ def render():
         options=options,
         index=options.index(current),
         format_func=lambda name: CUSTOM_LABEL if name == CUSTOM_PROFILE else name,
-        help="Thêm, sửa, xóa profile trong mục llm_profiles của config.yaml.",
+        help="Thêm, sửa, xóa profile bằng nút 'Quản lý LLM profile & Vertex AI' bên dưới.",
     )
     if chosen != current:
         update_key("api.profile", chosen, add_missing=True)
