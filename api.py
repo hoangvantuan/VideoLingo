@@ -44,6 +44,7 @@ class RunRequest(BaseModel):
     dubbing: bool = False
     target_language: str | None = Field(default=None, min_length=1)
     source_language: str | None = Field(default=None, min_length=1)
+    original_volume: float | None = Field(default=None, ge=0, le=1)  # custom: F10
 
 
 def require_idle():
@@ -146,6 +147,8 @@ def run(request: RunRequest):
             update_key("target_language", request.target_language)
         if request.source_language is not None:
             update_key("whisper.language", request.source_language)
+        if request.original_volume is not None:  # custom
+            update_key("original_volume", request.original_volume, add_missing=True)  # custom
         runner.start(get_steps(request.stage, request.dubbing))
         return {"accepted": True}
 

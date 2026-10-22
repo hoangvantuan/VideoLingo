@@ -494,6 +494,9 @@ def page_setting():
             from core.st_utils import soniox_tts_settings
             soniox_tts_settings.render()
 
+        from core.st_utils import original_volume_setting  # custom: F10
+        original_volume_setting.render()  # custom
+
 
 
 def check_api():
