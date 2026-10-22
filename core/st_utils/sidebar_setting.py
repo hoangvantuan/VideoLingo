@@ -399,6 +399,7 @@ def page_setting():
             "custom_tts": t("Custom TTS"),
             "sf_cosyvoice2": t("SiliconFlow CosyVoice2"),
             "f5tts": t("F5-TTS"),
+            "soniox_tts": "Soniox TTS",  # custom
         }
         from core.st_utils.tts_settings import select_tts_method
         select_tts = select_tts_method(tts_method_labels)
@@ -488,6 +489,10 @@ def page_setting():
 
         elif select_tts == "edge_tts":
             config_input(t("Edge TTS Voice"), "edge_tts.voice")
+
+        elif select_tts == "soniox_tts":  # custom
+            from core.st_utils import soniox_tts_settings
+            soniox_tts_settings.render()
 
 
 

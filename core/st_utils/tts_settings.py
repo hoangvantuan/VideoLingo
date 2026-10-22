@@ -8,12 +8,14 @@ PROVIDERS = {
     "Microsoft Edge": ("edge_tts",),
     "Local service": ("gpt_sovits",),
     "Custom provider": ("custom_tts",),
+    "Soniox": ("soniox_tts",),  # custom
 }
 KEY_PATHS = {
     "OpenLux": ("openai_tts.api_key",),
     "302.ai": ("f5tts.302_api",),
     "SiliconFlow": ("sf_fish_tts.api_key", "sf_cosyvoice2.api_key"),
     "Fish Audio": ("fish_audio.api_key",),
+    "Soniox": ("soniox_tts.api_key",),  # custom
 }
 
 # ------------
