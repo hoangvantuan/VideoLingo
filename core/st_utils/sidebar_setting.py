@@ -404,6 +404,7 @@ def page_setting():
             "sf_cosyvoice2": t("SiliconFlow CosyVoice2"),
             "f5tts": t("F5-TTS"),
             "soniox_tts": "Soniox TTS",  # custom
+            "vertex_tts": "Vertex AI TTS",  # custom: F9
         }
         from core.st_utils.tts_settings import select_tts_method
         select_tts = select_tts_method(tts_method_labels)
@@ -497,6 +498,10 @@ def page_setting():
         elif select_tts == "soniox_tts":  # custom
             from core.st_utils import soniox_tts_settings
             soniox_tts_settings.render()
+
+        elif select_tts == "vertex_tts":  # custom: F9
+            from core.st_utils import vertex_tts_settings  # custom
+            vertex_tts_settings.render()  # custom
 
         from core.st_utils import original_volume_setting  # custom: F10
         original_volume_setting.render()  # custom
