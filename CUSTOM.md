@@ -11,9 +11,9 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/tts_backend/soniox_tts.py` | F6 — phương thức lồng tiếng `soniox_tts` (Soniox TTS `tts-rt-v2`) |
 | `core/st_utils/soniox_tts_settings.py` | F6 — giao diện chọn giọng (lọc theo accent/giới tính), ngôn ngữ, tốc độ |
 | `tests/test_soniox_tts.py` | Test cho F6 |
-| `tests/test_tts_max_workers.py` | Test giới hạn số request TTS song song |
 | `core/utils/llm_profile.py` | F7 — giải quyết Profile đang dùng (`api.profile` → `llm_profiles`) thành model, base_url, credential, JSON mode, `reasoning_effort` |
 | `tests/test_llm_profile.py` | Test cho F7 (qua seam `ask_gpt`, client OpenAI giả) |
+| `core/utils/config_errors.py` | F7/F8 — `ConfigError`: lỗi cấu hình (profile, credential Google, 401/403), `except_handler` không thử lại |
 | `tests/test_llm_max_workers.py` | Test cho F7: số luồng Khâu Dịch theo Profile đang dùng (`llm_max_workers()`) |
 | `core/st_utils/llm_profile_setting.py` | F7 — ô chọn Profile đang dùng trong LLM Configuration của sidebar, hiện Provider/model, ghi `api.profile` |
 | `tests/test_llm_profile_setting.py` | Test cho ô chọn profile (Streamlit `AppTest`, config giả) |
@@ -25,6 +25,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_google_credentials.py` | Test credential Google dùng chung |
 | `core/tts_backend/vertex_tts.py` | F9 — phương thức lồng tiếng `vertex_tts` (Cloud Text-to-Speech REST, Chirp 3 HD) |
 | `core/st_utils/vertex_tts_settings.py` | F9 — giao diện chọn giọng Cloud TTS (lọc theo `vertex_tts.language`, Chirp 3 HD trước), ngôn ngữ, tốc độ |
+| `tests/test_vertex_tts_settings.py` | Test cho màn hình giọng F9 (Streamlit `AppTest`, danh sách giọng giả) |
 | `tests/test_vertex_tts.py` | Test cho F9 (backend, liệt kê/lọc giọng, giọng mặc định, nhánh dispatcher) |
 | `tests/test_vertex_llm.py` | Test cho F8 (profile Vertex qua seam `ask_gpt`, client OpenAI và credential Google giả) |
 | `CUSTOM.md` | Tài liệu này |
@@ -43,24 +44,26 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/st_utils/sidebar_setting.py` (F6) | nhãn `soniox_tts` + nhánh gọi `soniox_tts_settings.render()` | 4 |
 | `core/_10_gen_audio.py` | giới hạn số luồng TTS bằng `tts_max_workers` (VieNeu-TTS chỉ phục vụ 1 stream, gửi song song bị HTTP 429 `queue full`) | 1 |
 | `core/utils/ask_gpt.py` | F7 — import resolver; model, base_url, credential, JSON mode và `reasoning_effort` lấy từ Profile đang dùng; base_url chỉ qua `normalize_base_url` khi profile cho phép | 8 |
-| `core/utils/ask_gpt.py` (F8) | lỗi 401/403 của request được nối thêm gợi ý của profile (`auth_error_hint`, Vertex chỉ tới "Setup Google Cloud") | 7 |
+| `core/utils/ask_gpt.py` (F8) | lỗi 401/403 của request được nối thêm gợi ý của profile (`auth_error_hint`, Vertex chỉ tới "Setup Google Cloud") và ném lại thành `LLMAuthError` (không thử lại) | 7 |
+| `core/utils/decorator.py` | F7/F8 — import `ConfigError`; `except_handler` ném thẳng `ConfigError` như `StopTask`, không thử lại 5 lần | 2 |
 | `core/_3_2_split_meaning.py` | F7 — import + số luồng chia câu theo nghĩa lấy từ `llm_max_workers()` | 2 |
 | `core/_4_2_translate.py` | F7 — import + số luồng dịch lấy từ `llm_max_workers()` | 2 |
 | `core/_5_split_sub.py` | F7 — import + số luồng chia phụ đề (2 chỗ) lấy từ `llm_max_workers()` | 3 |
 | `tests/test_backlog_fixes.py` | F7 — `_check_api` patch thêm `load_key`/`load_key_or` của `llm_profile`; test chia phụ đề patch `llm_max_workers` | 2 + 2 |
-| `config.example.yaml` (F7) | khóa `api.profile`; mục `llm_profiles:` mẫu | 2 + 14 |
-| `config.example.yaml` (F8) | profile `gemini-lite`, `gemini-flash` trong `llm_profiles:` | 10 |
+| `config.example.yaml` (F7) | khóa `api.profile`; mục `llm_profiles:` mẫu (cả `base_url` dạng comment) | 2 + 16 |
+| `config.example.yaml` (F8) | profile `gemini-lite`, `gemini-flash` trong `llm_profiles:` | 13 |
 | `core/st_utils/sidebar_setting.py` (F7) | các ô nhập API gốc chuyển vào hàm lồng `custom_llm_inputs()`, chỉ gọi khi `llm_profile_setting.render()` báo đang chọn Profile custom | 5 |
 | `core/_12_dub_to_vid.py` | F10: import `original_audio`; `original_volume > 0` thay track nền demucs bằng track âm thanh gốc của video | 7 |
+| `docs/api.md` | F10: đoạn mô tả field `original_volume` của `POST /run`, bọc trong `<!-- custom: F10 -->` … `<!-- /custom -->` | 4 + 2 |
 | `api.py` | F10: field tùy chọn `original_volume` (0–1) của `POST /run`, ghi vào `config.yaml` | 3 |
 | `core/st_utils/sidebar_setting.py` (F10) | gọi `original_volume_setting.render()` cuối Dubbing Settings | 2 |
 | `tests/test_api.py` | F10: test `test_run_saves_original_volume` | 1 hàm |
 | `core/tts_backend/tts_main.py` (F9) | import + nhánh `elif TTS_METHOD == 'vertex_tts'` | 3 |
-| `core/_10_gen_audio.py` (F9) | khi `tts_method == 'vertex_tts'`, `vertex_tts.max_workers` thay toàn bộ số luồng TTS | 2 |
+| `core/_10_gen_audio.py` (F9) | khi `tts_method == 'vertex_tts'`, `vertex_tts.max_workers` thay toàn bộ số luồng TTS | 1 |
 | `core/st_utils/tts_settings.py` (F9) | provider `"Vertex AI"` trong `PROVIDERS` (không có trong `KEY_PATHS`: xác thực bằng credential Google) | 1 |
 | `core/st_utils/sidebar_setting.py` (F9) | nhãn `vertex_tts` + nhánh gọi `vertex_tts_settings.render()` | 4 |
 | `requirements.txt` (F8/F9) | `google-auth` | 2 |
-| `config.example.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và `vertex_tts` trong ghi chú `tts_method` | 3 + 12 + 3 + 20 |
+| `config.example.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
 
 ## Cấu hình F1 (Soniox)
 
@@ -123,6 +126,8 @@ llm_profiles:
     reasoning_effort: low                   # giới hạn token thinking
 ```
 
+**`config.yaml` đã có từ trước:** file này không được track nên không tự có các khóa mới. Chép khóa `api.profile` và mục `llm_profiles:` (kèm comment) từ `config.example.yaml` sang; key thật đặt trong biến môi trường, `api_key` để `''`. Thiếu `llm_profiles` thì ô chọn profile không hiện và Khâu Dịch dùng Profile custom.
+
 Mỗi profile bắt buộc có `provider` và `model`. Các khóa ghi đè còn lại, nếu thiếu thì lấy giá trị chung:
 
 | Khóa trong profile | Giá trị chung khi thiếu |
@@ -134,7 +139,9 @@ Mỗi profile bắt buộc có `provider` và `model`. Các khóa ghi đè còn 
 
 - **Thứ tự tìm key:** biến môi trường ghi trong `api_key_env` → `llm_profiles.<tên>.api_key`. Không tìm thấy thì lỗi nêu tên profile và cả hai chỗ đặt key. Profile custom vẫn dùng `api.key` (máy chủ local như Ollama không cần key).
 - **Đổi profile trên giao diện:** sidebar → **LLM Configuration** → ô **Profile đang dùng**. Danh sách gồm *Profile custom (mục api: gốc)* và các profile trong `llm_profiles`; dưới ô hiện Provider và model của profile đang chọn. Lựa chọn được ghi ngay vào `api.profile` và lượt dịch tiếp theo dùng profile đó. Các ô nhập API gốc (key, base_url, model, JSON mode) chỉ hiện khi chọn Profile custom; profile có tên có nút **Check API** riêng. Không có `llm_profiles` thì sidebar giữ nguyên như upstream. Thêm, sửa, xóa profile vẫn làm trong `config.yaml`.
+- **Số luồng không cần credential:** `llm_max_workers()` đọc thẳng `llm_profiles.<tên>.max_workers`, không dựng profile, nên không nạp credential Google.
 - **Đổi profile bằng tay:** sửa `api.profile` thành tên khác trong `llm_profiles`, hoặc `''` để quay về Profile custom. Tên không có trong `llm_profiles` thì lỗi liệt kê các profile đang có.
+- **Lỗi cấu hình không bị thử lại:** profile không có, thiếu key, thiếu credential/project Google, request bị 401/403 là `ConfigError` (`core/utils/config_errors.py`); `except_handler` ném ngay thay vì thử lại 5 lần, nên thông báo hiện một lần.
 - **Cache không phân biệt model:** câu trả lời LLM được cache theo prompt trong `output/gpt_log`. Đổi profile rồi dịch lại cùng video sẽ dùng lại kết quả cũ; xóa `output/gpt_log` nếu muốn dịch lại bằng profile mới.
 - Thêm Provider mới: thêm một mục vào `PROVIDERS` trong `core/utils/llm_profile.py` (như `vertex` ở F8).
 
@@ -158,10 +165,11 @@ vertex:
   location_llm: 'global'
 ```
 
+- **`config.yaml` đã có từ trước:** chép profile `gemini-lite`, `gemini-flash` (trong `llm_profiles:`), khóa `api.profile` và mục `vertex:` từ `config.example.yaml`, rồi đặt `vertex.project` (ví dụ `videolingo-512414`).
 - Gọi endpoint tương thích OpenAI qua client `OpenAI` của `ask_gpt`: `https://aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/endpoints/openapi` (location khác `global` dùng host `{location}-aiplatform.googleapis.com`). URL **không** qua `normalize_base_url`, nên project chứa chuỗi `ark` vẫn đúng.
 - Credential là access token của `core/utils/google_credentials.py`, lấy lại ở mỗi request và tự làm mới khi hết hạn (job dịch quá 1 giờ không lỗi).
 - JSON mode bật mặc định cho Vertex (ghi đè được bằng `llm_support_json` của profile); `api.llm_support_json` không áp dụng. Profile Vertex không dùng `api_key_env`/`api_key`/`base_url`.
-- Lỗi rõ ràng: thiếu `vertex.project` (và credential không có project), thiếu `GOOGLE_APPLICATION_CREDENTIALS`, hoặc request bị 401/403 (credential thiếu role `roles/aiplatform.user`) đều báo kèm chỉ dẫn tới mục "Setup Google Cloud".
+- Lỗi rõ ràng: thiếu `vertex.project` (và credential không có project), thiếu `GOOGLE_APPLICATION_CREDENTIALS`, hoặc request bị 401/403 (credential thiếu role `roles/aiplatform.user` hoặc `roles/serviceusage.serviceUsageConsumer`) đều báo kèm chỉ dẫn tới mục "Setup Google Cloud", và không bị thử lại (xem F7).
 - Đổi profile giữa OpenRouter và Gemini trên cùng video: xóa `output/gpt_log` (cache không phân biệt model, xem F7).
 
 ## Cấu hình F10 (Thuyết minh)
@@ -196,8 +204,9 @@ vertex_tts:
   max_workers: 4     # thay toàn bộ max_workers / tts_max_workers khi đang dùng vertex_tts
 ```
 
-- Danh sách giọng lấy từ `GET https://texttospeech.googleapis.com/v1/voices?languageCode=<vertex_tts.language>`, chỉ giữ giọng có đúng mã ngôn ngữ đó; Chirp 3 HD đứng trước (ô "Chirp 3 HD voices only" bật mặc định). `voice` trống thì giao diện chọn sẵn `vi-VN-Chirp3-HD-Aoede`, không có thì giọng Chirp 3 HD đầu tiên. Danh sách được cache 1 giờ trên giao diện (theo ngôn ngữ); lỗi không bị cache.
-- Thiếu credential: màn hình hiện hướng dẫn đặt `GOOGLE_APPLICATION_CREDENTIALS` và cho gõ tay tên giọng, không lỗi trang. Lỗi khác (quyền, mạng) hiện cảnh báo.
+- **`config.yaml` đã có từ trước:** chép mục `vertex:` và `vertex_tts:` từ `config.example.yaml`, rồi đặt `vertex.project`.
+- Danh sách giọng lấy từ `GET https://texttospeech.googleapis.com/v1/voices?languageCode=<vertex_tts.language>`, chỉ giữ giọng có đúng mã ngôn ngữ đó; Chirp 3 HD đứng trước (ô "Chirp 3 HD voices only" bật mặc định). `voice` trống thì giao diện chọn sẵn `vi-VN-Chirp3-HD-Aoede`, không có thì giọng Chirp 3 HD đầu tiên, và ghi giọng đó vào `vertex_tts.voice` để giọng lồng tiếng đúng là giọng đang hiện. Danh sách được cache 1 giờ trên giao diện (theo ngôn ngữ); lỗi không bị cache.
+- Thiếu credential hoặc project: màn hình hiện đúng thông báo của lỗi (đặt `GOOGLE_APPLICATION_CREDENTIALS`, hoặc đặt `vertex.project`) và cho gõ tay tên giọng, không lỗi trang. Lỗi khác (quyền, mạng) hiện cảnh báo.
 - Thanh trượt tốc độ trên giao diện: 0.7–1.3 (khoảng an toàn để khớp thời lượng phụ đề). Giá trị sửa tay ngoài khoảng này được giữ nguyên cho tới khi kéo thanh trượt.
 - Nhãn trên giao diện là chữ cố định, không qua `t()`.
 - Gọi REST `POST https://texttospeech.googleapis.com/v1/text:synthesize` (không dùng `google-cloud-texttospeech`), `audioEncoding: LINEAR16`: Cloud TTS trả WAV có header nên ghi thẳng ra `.wav`.
