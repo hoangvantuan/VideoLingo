@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.console import Console
 from rich.table import Table
 from core.utils import *
+from core.utils.llm_profile import llm_max_workers  # custom
 from core.utils.config_utils import get_text_joiner
 from core.utils.models import *
 console = Console()
@@ -104,7 +105,7 @@ def split_align_subs(src_lines: List[str], tr_lines: List[str]):
         tr_lines[i] = tr_parts
         remerged_tr_lines[i] = tr_remerged
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=load_key("max_workers")) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=llm_max_workers()) as executor:  # custom
         futures = [executor.submit(process, i) for i in to_split]
     for i, future in zip(to_split, futures):
         error = future.exception()
@@ -133,7 +134,7 @@ def split_source_lines(lines: List[str]) -> List[str]:
         if all(len(line) <= max_length for line in lines):
             break
         check_cancel()
-        with concurrent.futures.ThreadPoolExecutor(max_workers=load_key("max_workers")) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=llm_max_workers()) as executor:  # custom
             lines = [part for parts in executor.map(process, lines) for part in parts]
     return lines
 

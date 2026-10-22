@@ -124,3 +124,8 @@ def active_profile():
         available = ", ".join(profiles) or "none"
         raise LLMProfileError(f"api.profile '{name}' is not in llm_profiles (available: {available})")
     return _named_profile(name, profiles[name])
+
+
+def llm_max_workers():
+    """Thread count for every parallel Translate-stage step: the active profile's, else the general max_workers."""
+    return active_profile().max_workers or load_key("max_workers")

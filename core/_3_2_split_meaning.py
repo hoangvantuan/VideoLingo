@@ -6,6 +6,7 @@ from core.prompts import get_split_prompt
 from core.spacy_utils.load_nlp_model import init_nlp
 from core.task_runner import StopTask
 from core.utils import *
+from core.utils.llm_profile import llm_max_workers  # custom
 from rich.console import Console
 from rich.table import Table
 from core.utils.models import _3_1_SPLIT_BY_NLP, _3_2_SPLIT_BY_MEANING
@@ -150,7 +151,7 @@ def split_sentences_by_meaning():
     nlp = init_nlp()
     # 🔄 process sentences multiple times to ensure all are split
     for retry_attempt in range(3):
-        sentences = parallel_split_sentences(sentences, max_length=load_key("max_split_length"), max_workers=load_key("max_workers"), nlp=nlp, retry_attempt=retry_attempt)
+        sentences = parallel_split_sentences(sentences, max_length=load_key("max_split_length"), max_workers=llm_max_workers(), nlp=nlp, retry_attempt=retry_attempt)  # custom
 
     # 💾 save results
     with open(_3_2_SPLIT_BY_MEANING, 'w', encoding='utf-8') as f:

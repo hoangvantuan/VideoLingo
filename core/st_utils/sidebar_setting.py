@@ -124,7 +124,7 @@ def page_setting():
         unsafe_allow_html=True,
     )
 
-    with st.expander(t("LLM Configuration"), expanded=True):
+    def custom_llm_inputs():  # custom: F7, the upstream api inputs apply only to the Profile custom
         config_input(t("API_KEY"), "api.key", placeholder=t("Enter your API key"))
         config_input(
             t("BASE_URL"),
@@ -209,6 +209,10 @@ def page_setting():
         if llm_support_json != load_key("api.llm_support_json"):
             update_key("api.llm_support_json", llm_support_json)
             st.rerun()
+    with st.expander(t("LLM Configuration"), expanded=True):  # custom: F7
+        from core.st_utils import llm_profile_setting  # custom
+        if llm_profile_setting.render():  # custom
+            custom_llm_inputs()  # custom
     with st.expander(t("Subtitles Settings"), expanded=True):
         c1, c2 = st.columns(2)
         with c1:
