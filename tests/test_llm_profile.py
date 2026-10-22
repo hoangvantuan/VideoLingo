@@ -160,3 +160,10 @@ def test_custom_profile_on_local_server_still_needs_no_key(setup):
     setup(CUSTOM_ONLY.replace("'custom-key'", "''").replace("https://api.example.com", "http://localhost:11434"))
     _, client, _ = ask()
     assert client == {"api_key": "not-needed", "base_url": "http://localhost:11434/v1"}
+
+
+def test_empty_profile_name_uses_the_custom_profile_even_with_profiles_declared(setup):
+    setup(WITH_PROFILES.format(profile=""))
+    _, client, request = ask()
+    assert client == {"api_key": "custom-key", "base_url": "https://api.example.com/v1"}
+    assert request["model"] == "custom-model"

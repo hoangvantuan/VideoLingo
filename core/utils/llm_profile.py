@@ -69,7 +69,8 @@ def _api_key_provider(default_base_url=None):
     return resolve
 
 
-# provider -> resolve(name, entry) giving base_url, normalize_base_url and credential
+# provider -> resolve(name, entry) giving base_url, normalize_base_url, credential
+# and optionally a default llm_support_json for the provider
 PROVIDERS = {
     "openrouter": _api_key_provider("https://openrouter.ai/api/v1"),
 }
@@ -81,15 +82,18 @@ def _named_profile(name, entry):
         raise LLMProfileError(f"LLM profile '{name}' needs provider (llm_profiles.{name}.provider)")
     if not entry.get("model"):
         raise LLMProfileError(f"LLM profile '{name}' needs model (llm_profiles.{name}.model)")
-    resolve = PROVIDERS.get(provider, _api_key_provider())
+    resolved = PROVIDERS.get(provider, _api_key_provider())(name, entry)
+    json_default = resolved.pop("llm_support_json", None)  # a provider may set its own default
+    if json_default is None:
+        json_default = load_key("api.llm_support_json")
     return LLMProfile(
         name=name,
         provider=provider,
         model=entry["model"],
-        llm_support_json=bool(entry.get("llm_support_json", load_key("api.llm_support_json"))),
+        llm_support_json=bool(entry.get("llm_support_json", json_default)),
         reasoning_effort=entry.get("reasoning_effort") or None,
         max_workers=entry.get("max_workers"),
-        **resolve(name, entry),
+        **resolved,
     )
 
 
