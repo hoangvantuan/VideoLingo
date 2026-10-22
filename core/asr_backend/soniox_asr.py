@@ -66,7 +66,7 @@ def _wait_until_completed(session, transcription_id):
         status = _request(session, "GET", f"/transcriptions/{transcription_id}")
         if status.get("status") == "completed":
             return
-        if status.get("status") == "error":
+        if status.get("status") in ("error", "failed"):
             raise RuntimeError(f"Soniox transcription failed: {status.get('error_message', 'unknown error')}")
         if time.time() > deadline:
             raise TimeoutError(f"Soniox transcription did not finish within {POLL_TIMEOUT} seconds")

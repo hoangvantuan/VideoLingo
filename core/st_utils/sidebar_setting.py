@@ -222,7 +222,7 @@ def page_setting():
                 update_key("whisper.language", langs[lang])
                 st.rerun()
 
-        runtimes = ["local", "elevenlabs", "mai"]
+        runtimes = ["local", "elevenlabs", "mai", "soniox"]  # custom: soniox
         configured_runtime = load_key("whisper.runtime")
         if configured_runtime not in runtimes:
             st.warning(t("The 302.ai WhisperX cloud service has been retired. Select Local or ElevenLabs to continue."))
@@ -234,6 +234,7 @@ def page_setting():
                 "local": t("Local"),
                 "elevenlabs": t("ElevenLabs"),
                 "mai": t("MAI-Transcribe-2"),
+                "soniox": "Soniox",  # custom
             }[x],
             help=t(
                 "Local Qwen3-ASR runs best on an NVIDIA GPU or Apple Silicon (CPU works but is slow); cloud recognition requires a provider API key."
@@ -261,6 +262,8 @@ def page_setting():
                 st.warning(t("WhisperX is not installed. Follow the manual page (docs/pages/docs/whisperx-manual.en-US.md) and install the extra packages yourself, or set whisper.backend to qwen."))
         if runtime == "elevenlabs":
             config_input(t("ElevenLabs API"), "whisper.elevenlabs_api_key")
+        elif runtime == "soniox":  # custom: SONIOX_API_KEY env var takes precedence
+            config_input("Soniox API", "whisper.soniox_api_key")
         elif runtime == "mai":
             from core.asr_backend.mai_asr import detect_region
 

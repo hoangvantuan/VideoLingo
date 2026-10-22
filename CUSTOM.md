@@ -18,6 +18,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | File | Thay đổi | Số dòng |
 |---|---|---|
 | `core/_2_asr.py` | thêm `"soniox"` vào danh sách runtime; kiểm tra key trước khi chuẩn bị media; nhánh `elif runtime == "soniox"` | 6 |
+| `core/st_utils/sidebar_setting.py` | thêm `"soniox"` vào ô chọn runtime (nhãn cố định, không qua `t()`) và ô nhập key | 4 |
 | `config.yaml` | khóa `whisper.soniox_api_key` và ghi chú runtime | 3 |
 
 ## Cấu hình F1 (Soniox)
@@ -31,4 +32,4 @@ whisper:
 
 - Key đọc theo thứ tự: `SONIOX_API_KEY` → `whisper.soniox_api_key`.
 - File âm thanh và transcription trên Soniox luôn bị xóa sau mỗi đoạn, kể cả khi lỗi.
-- Cache ASR dùng nhánh chung của `transcription_cache.cache_key`, nên đổi phiên bản package local (qwen-asr, transformers, demucs…) sẽ làm mất cache Soniox. Chấp nhận để không phải sửa thêm file lõi.
+- Cache ASR dùng nhánh chung của `transcription_cache.cache_key`, nên đổi phiên bản package local (qwen-asr, transformers, demucs…) sẽ làm mất cache Soniox. Ngược lại, đổi `MODEL` trong `soniox_asr.py` **không** tự làm mất cache — khi đổi model, xóa `.cache/asr` hoặc chấp nhận dùng kết quả cũ. Chấp nhận để không phải sửa thêm file lõi.
