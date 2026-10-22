@@ -14,6 +14,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_tts_max_workers.py` | Test giới hạn số request TTS song song |
 | `core/utils/llm_profile.py` | F7 — giải quyết Profile đang dùng (`api.profile` → `llm_profiles`) thành model, base_url, credential, JSON mode, `reasoning_effort` |
 | `tests/test_llm_profile.py` | Test cho F7 (qua seam `ask_gpt`, client OpenAI giả) |
+| `tests/test_llm_max_workers.py` | Test cho F7: số luồng Khâu Dịch theo Profile đang dùng (`llm_max_workers()`) |
 | `core/utils/original_audio.py` | F10 — lồng tiếng kiểu Thuyết minh: đọc `original_volume`, dò track âm thanh của video, dựng bộ lọc trộn |
 | `core/st_utils/original_volume_setting.py` | F10 — thanh trượt "Âm lượng gốc (Thuyết minh)" trong Dubbing Settings |
 | `tests/test_original_volume.py` | Test cho F10 (lệnh FFmpeg của bước ghép video, không chạy FFmpeg thật) |
@@ -39,7 +40,10 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/st_utils/sidebar_setting.py` (F6) | nhãn `soniox_tts` + nhánh gọi `soniox_tts_settings.render()` | 4 |
 | `core/_10_gen_audio.py` | giới hạn số luồng TTS bằng `tts_max_workers` (VieNeu-TTS chỉ phục vụ 1 stream, gửi song song bị HTTP 429 `queue full`) | 1 |
 | `core/utils/ask_gpt.py` | F7 — import resolver; model, base_url, credential, JSON mode và `reasoning_effort` lấy từ Profile đang dùng; base_url chỉ qua `normalize_base_url` khi profile cho phép | 8 |
-| `tests/test_backlog_fixes.py` | F7 — `_check_api` patch thêm `load_key`/`load_key_or` của `llm_profile` | 2 |
+| `core/_3_2_split_meaning.py` | F7 — import + số luồng chia câu theo nghĩa lấy từ `llm_max_workers()` | 2 |
+| `core/_4_2_translate.py` | F7 — import + số luồng dịch lấy từ `llm_max_workers()` | 2 |
+| `core/_5_split_sub.py` | F7 — import + số luồng chia phụ đề (2 chỗ) lấy từ `llm_max_workers()` | 3 |
+| `tests/test_backlog_fixes.py` | F7 — `_check_api` patch thêm `load_key`/`load_key_or` của `llm_profile`; test chia phụ đề patch `llm_max_workers` | 2 + 2 |
 | `config.example.yaml` (F7) | khóa `api.profile`; mục `llm_profiles:` mẫu | 2 + 14 |
 | `core/_12_dub_to_vid.py` | F10: import `original_audio`; `original_volume > 0` thay track nền demucs bằng track âm thanh gốc của video | 7 |
 | `api.py` | F10: field tùy chọn `original_volume` (0–1) của `POST /run`, ghi vào `config.yaml` | 3 |
@@ -120,7 +124,7 @@ Mỗi profile bắt buộc có `provider` và `model`. Các khóa ghi đè còn 
 | `base_url` | base_url mặc định của Provider (`openrouter`); Provider khác thì bắt buộc |
 | `llm_support_json` | `api.llm_support_json` |
 | `reasoning_effort` | không gửi tham số `reasoning_effort` |
-| `max_workers` | `max_workers` (số luồng theo profile được áp dụng ở #4) |
+| `max_workers` | `max_workers`. Áp dụng cho mọi bước song song của Khâu Dịch (chia câu theo nghĩa, dịch, chia phụ đề) qua `llm_max_workers()`; bước sinh audio không đổi |
 
 - **Thứ tự tìm key:** biến môi trường ghi trong `api_key_env` → `llm_profiles.<tên>.api_key`. Không tìm thấy thì lỗi nêu tên profile và cả hai chỗ đặt key. Profile custom vẫn dùng `api.key` (máy chủ local như Ollama không cần key).
 - **Đổi profile:** sửa `api.profile` thành tên khác trong `llm_profiles`, hoặc `''` để quay về Profile custom. Tên không có trong `llm_profiles` thì lỗi liệt kê các profile đang có.
