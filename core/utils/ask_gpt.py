@@ -6,6 +6,7 @@ from threading import Lock
 from urllib.parse import urlparse
 import json_repair
 from openai import OpenAI
+from openai import AuthenticationError, PermissionDeniedError  # custom
 from core.utils.config_utils import load_key
 from rich import print as rprint
 from core.utils.decorator import except_handler
@@ -129,7 +130,12 @@ def ask_gpt(prompt, resp_type=None, valid_def=None, log_title="default"):
         params["response_format"] = response_format
     if profile.reasoning_effort:  # custom
         params["reasoning_effort"] = profile.reasoning_effort  # custom
-    resp_raw = client.chat.completions.create(**params)
+    try:  # custom
+        resp_raw = client.chat.completions.create(**params)  # custom
+    except (AuthenticationError, PermissionDeniedError) as error:  # custom
+        if not profile.auth_error_hint:  # custom
+            raise  # custom
+        raise RuntimeError(f"{error}; {profile.auth_error_hint}") from error  # custom
 
     # process and return full result
     resp_content = resp_raw.choices[0].message.content

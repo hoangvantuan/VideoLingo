@@ -22,6 +22,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_google_credentials.py` | Test credential Google dùng chung |
 | `core/tts_backend/vertex_tts.py` | F9 — phương thức lồng tiếng `vertex_tts` (Cloud Text-to-Speech REST, Chirp 3 HD) |
 | `tests/test_vertex_tts.py` | Test cho F9 (backend + nhánh dispatcher) |
+| `tests/test_vertex_llm.py` | Test cho F8 (profile Vertex qua seam `ask_gpt`, client OpenAI và credential Google giả) |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -38,8 +39,10 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/st_utils/sidebar_setting.py` (F6) | nhãn `soniox_tts` + nhánh gọi `soniox_tts_settings.render()` | 4 |
 | `core/_10_gen_audio.py` | giới hạn số luồng TTS bằng `tts_max_workers` (VieNeu-TTS chỉ phục vụ 1 stream, gửi song song bị HTTP 429 `queue full`) | 1 |
 | `core/utils/ask_gpt.py` | F7 — import resolver; model, base_url, credential, JSON mode và `reasoning_effort` lấy từ Profile đang dùng; base_url chỉ qua `normalize_base_url` khi profile cho phép | 8 |
+| `core/utils/ask_gpt.py` (F8) | lỗi 401/403 của request được nối thêm gợi ý của profile (`auth_error_hint`, Vertex chỉ tới "Setup Google Cloud") | 7 |
 | `tests/test_backlog_fixes.py` | F7 — `_check_api` patch thêm `load_key`/`load_key_or` của `llm_profile` | 2 |
 | `config.example.yaml` (F7) | khóa `api.profile`; mục `llm_profiles:` mẫu | 2 + 14 |
+| `config.example.yaml` (F8) | profile `gemini-lite`, `gemini-flash` trong `llm_profiles:` | 10 |
 | `core/_12_dub_to_vid.py` | F10: import `original_audio`; `original_volume > 0` thay track nền demucs bằng track âm thanh gốc của video | 7 |
 | `api.py` | F10: field tùy chọn `original_volume` (0–1) của `POST /run`, ghi vào `config.yaml` | 3 |
 | `core/st_utils/sidebar_setting.py` (F10) | gọi `original_volume_setting.render()` cuối Dubbing Settings | 2 |
@@ -122,7 +125,33 @@ Mỗi profile bắt buộc có `provider` và `model`. Các khóa ghi đè còn 
 - **Thứ tự tìm key:** biến môi trường ghi trong `api_key_env` → `llm_profiles.<tên>.api_key`. Không tìm thấy thì lỗi nêu tên profile và cả hai chỗ đặt key. Profile custom vẫn dùng `api.key` (máy chủ local như Ollama không cần key).
 - **Đổi profile:** sửa `api.profile` thành tên khác trong `llm_profiles`, hoặc `''` để quay về Profile custom. Tên không có trong `llm_profiles` thì lỗi liệt kê các profile đang có.
 - **Cache không phân biệt model:** câu trả lời LLM được cache theo prompt trong `output/gpt_log`. Đổi profile rồi dịch lại cùng video sẽ dùng lại kết quả cũ; xóa `output/gpt_log` nếu muốn dịch lại bằng profile mới.
-- Thêm Provider mới (ví dụ `vertex` ở F8): thêm một mục vào `PROVIDERS` trong `core/utils/llm_profile.py`.
+- Thêm Provider mới: thêm một mục vào `PROVIDERS` trong `core/utils/llm_profile.py` (như `vertex` ở F8).
+
+## Cấu hình F8 (Vertex AI cho Khâu Dịch)
+
+Profile `provider: vertex` dịch bằng Gemini trên Vertex AI, không cần API key: xác thực bằng credential Google dùng chung (xem [Setup Google Cloud](#setup-google-cloud)). Có sẵn hai profile:
+
+```yaml
+api:
+  profile: 'gemini-lite'
+llm_profiles:
+  gemini-lite:
+    provider: vertex
+    model: 'google/gemini-3.5-flash-lite'   # tên model phải có tiền tố google/
+  gemini-flash:
+    provider: vertex
+    model: 'google/gemini-3.8-flash'
+    reasoning_effort: low                   # không đặt thì một câu ngắn tốn ~240 reasoning token
+vertex:
+  project: 'videolingo-512414'   # trống thì dùng project của credential
+  location_llm: 'global'
+```
+
+- Gọi endpoint tương thích OpenAI qua client `OpenAI` của `ask_gpt`: `https://aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/endpoints/openapi` (location khác `global` dùng host `{location}-aiplatform.googleapis.com`). URL **không** qua `normalize_base_url`, nên project chứa chuỗi `ark` vẫn đúng.
+- Credential là access token của `core/utils/google_credentials.py`, lấy lại ở mỗi request và tự làm mới khi hết hạn (job dịch quá 1 giờ không lỗi).
+- JSON mode bật mặc định cho Vertex (ghi đè được bằng `llm_support_json` của profile); `api.llm_support_json` không áp dụng. Profile Vertex không dùng `api_key_env`/`api_key`/`base_url`.
+- Lỗi rõ ràng: thiếu `vertex.project` (và credential không có project), thiếu `GOOGLE_APPLICATION_CREDENTIALS`, hoặc request bị 401/403 (credential thiếu role `roles/aiplatform.user`) đều báo kèm chỉ dẫn tới mục "Setup Google Cloud".
+- Đổi profile giữa OpenRouter và Gemini trên cùng video: xóa `output/gpt_log` (cache không phân biệt model, xem F7).
 
 ## Cấu hình F10 (Thuyết minh)
 

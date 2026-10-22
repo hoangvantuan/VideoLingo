@@ -33,6 +33,16 @@ llm_profiles:
     # *Optional overrides; a missing key uses api.llm_support_json, and reasoning_effort is then not sent
     llm_support_json: false
     max_workers: 1
+  # *Custom (F8): Gemini on Vertex AI, no key: Google credential + vertex.project. JSON mode is on by default
+  gemini-lite:
+    provider: vertex
+    # *Vertex model names need the google/ prefix
+    model: 'google/gemini-3.5-flash-lite'
+  gemini-flash:
+    provider: vertex
+    model: 'google/gemini-3.8-flash'
+    # *Caps thinking tokens, billed as output
+    reasoning_effort: low
 # *Custom: cap on parallel TTS requests (0 = same as max_workers). VieNeu-TTS serves 1 stream.
 tts_max_workers: 0
 
