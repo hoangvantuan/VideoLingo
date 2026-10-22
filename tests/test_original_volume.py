@@ -1,4 +1,4 @@
-"""F10 — voice-over dubbing: the original audio stays quietly under the dubbed voice.
+"""F10 — Thuyết minh dubbing: the original audio stays quietly under the dubbed voice.
 
 FFmpeg is not run: subprocess.run is replaced, so the tests read the commands built
 by the merge step (the video's audio track is reported by a fake ffprobe).

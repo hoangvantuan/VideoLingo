@@ -116,7 +116,7 @@ pause_after_translate: false
 ## ======================== Dubbing Settings ======================== ##
 # TTS selection [edge_tts, openai_tts, fish_audio, f5tts, sf_fish_tts, sf_cosyvoice2, gpt_sovits, custom_tts]
 tts_method: 'edge_tts'
-# *Custom F10: voice-over — level (0–1) of the video's own audio kept under the dubbed voice.
+# *Custom F10: Thuyết minh — Âm lượng gốc, level (0–1) of the video's own audio kept under the dubbed voice.
 # > 0 replaces the Demucs background track; 0 keeps the upstream merge.
 original_volume: 0.25
 

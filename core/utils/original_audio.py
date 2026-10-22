@@ -1,4 +1,4 @@
-"""F10 (custom) — voice-over dubbing: keep the video's own audio quietly under the dubbed voice."""
+"""F10 (custom) — Thuyết minh dubbing: keep the video's own audio quietly under the dubbed voice."""
 import subprocess
 
 from rich import print as rprint

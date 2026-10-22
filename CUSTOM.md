@@ -13,7 +13,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_soniox_tts.py` | Test cho F6 |
 | `tests/test_tts_max_workers.py` | Test giới hạn số request TTS song song |
 | `core/utils/original_audio.py` | F10 — lồng tiếng kiểu Thuyết minh: đọc `original_volume`, dò track âm thanh của video, dựng bộ lọc trộn |
-| `core/st_utils/original_volume_setting.py` | F10 — thanh trượt "Original volume (voice-over)" trong Dubbing Settings |
+| `core/st_utils/original_volume_setting.py` | F10 — thanh trượt "Âm lượng gốc (Thuyết minh)" trong Dubbing Settings |
 | `tests/test_original_volume.py` | Test cho F10 (lệnh FFmpeg của bước ghép video, không chạy FFmpeg thật) |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
@@ -72,7 +72,7 @@ soniox_tts:
 ## Cấu hình F10 (Thuyết minh)
 
 Video lồng tiếng vẫn nghe được âm thanh gốc (cả giọng gốc) ở mức nhỏ cố định, giọng Việt đè lên trên.
-Chỉnh trên giao diện: **Dubbing Settings → Original volume (voice-over)**, qua `POST /run` (`original_volume`), hoặc sửa tay:
+Chỉnh trên giao diện: **Dubbing Settings → Âm lượng gốc (Thuyết minh)**, qua `POST /run` (`original_volume`), hoặc sửa tay:
 
 ```yaml
 original_volume: 0.25   # 0–1, nhân thẳng lên track âm thanh gốc; 0 = cách trộn của upstream
