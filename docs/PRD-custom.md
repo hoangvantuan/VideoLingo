@@ -140,6 +140,14 @@ Lượng xử lý chưa biết, nên cần số liệu để đánh giá:
   - Bước nào là nút cổ chai.
 - Mục tiêu: sau khoảng 10 video có đủ số liệu để quyết định có cần nâng cấp phần cứng hoặc đổi TTS hay không.
 
+### F10. Lồng tiếng kiểu Thuyết minh — **P1**
+- Video lồng tiếng giữ âm thanh gốc (cả giọng gốc) ở mức nhỏ cố định, giọng Việt đè lên trên.
+- Khóa `original_volume` (0–1, nhân thẳng lên track âm thanh của file video). Chỉnh qua `config.yaml`, field `original_volume` của `POST /run`, hoặc thanh trượt trong Dubbing Settings. Mặc định trong code `0` = hành vi upstream; config của fork đặt `0.25`.
+- `original_volume > 0` thay track nền demucs bằng âm thanh gốc (tránh lặp nhạc nền); video không có track âm thanh thì chỉ xuất giọng lồng tiếng, kèm cảnh báo.
+- Ngoài phạm vi: tự hạ âm thanh gốc khi giọng Việt đang nói (sidechain ducking), chuẩn hóa loudness riêng cho track gốc.
+
+**Tiêu chí chấp nhận:** ở `0.25` nghe được giọng gốc nhỏ dưới giọng Việt; giọng lồng tiếng giữ mức đã chuẩn hóa; `original_volume = 0` cho lệnh trộn giống hệt trước.
+
 ## 5. Yêu cầu phi chức năng
 
 | Mã | Yêu cầu |

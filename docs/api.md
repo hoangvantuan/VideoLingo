@@ -43,6 +43,10 @@ translation or video. A later `subtitles` run reuses the transcription.
 On Intel Macs, dubbing uses the new voice without mixing in the original background sound.
 Audio-only input supports subtitles, matching the UI. Optional `source_language` and
 `target_language` are saved to `config.yaml`; other settings use that file directly.
+Optional `original_volume` (0–1, outside that range returns 422) is saved to `config.yaml` too:
+above 0 (Thuyết minh), the dubbed video keeps the video's own audio at that level (0.25 = 25%) under the
+dubbed voice, instead of the Demucs background; 0 keeps the previous merge. A video without an
+audio track gets the dubbed voice alone.
 Do not edit configuration while processing.
 
 Poll `GET /status` again. It returns `state`, `active`, `step`, `step_index` (zero-based),
