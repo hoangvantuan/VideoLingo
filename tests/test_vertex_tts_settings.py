@@ -58,3 +58,14 @@ def test_missing_project_is_reported_as_such(config, monkeypatch):
     assert not at.exception
     assert at.info[0].value.startswith("Set vertex.project in config.yaml")
     assert at.text_input[0].value == vertex_tts.VOICE
+
+
+def test_parallel_requests_are_written_to_a_config_without_the_key(config, monkeypatch):
+    monkeypatch.setattr(vertex_tts, "list_voices", lambda language: [{"name": "vi-VN-Chirp3-HD-Charon"}])
+    at = run()
+    workers = next(box for box in at.number_input if box.label == "Vertex parallel requests (max_workers)")
+    assert workers.value == 4  # the default of _10_gen_audio when the key is missing
+    at = workers.set_value(2).run()
+    assert not at.exception
+    assert load_key_or("vertex_tts.max_workers", None) == 2
+    assert load_key_or("vertex_tts.voice", None) == "vi-VN-Chirp3-HD-Charon"
