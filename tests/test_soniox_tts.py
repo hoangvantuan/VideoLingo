@@ -47,7 +47,7 @@ class SonioxTtsTests(unittest.TestCase):
             soniox_tts.configured_api_key()
 
     def test_audio_is_written_after_retrying_a_rate_limit(self):
-        replies = [Reply(429), Reply(200, content=b"RIFFwav")]
+        replies = [Reply(429), Reply(200, content=b"ID3mp3")]
         with tempfile.TemporaryDirectory() as folder, patch.object(
             soniox_tts, "configured_api_key", return_value="key"
         ), patch.object(soniox_tts, "load_key_or", side_effect=config({})), patch.object(
@@ -55,10 +55,20 @@ class SonioxTtsTests(unittest.TestCase):
         ) as post, patch.object(soniox_tts.time, "sleep"):
             target = Path(folder) / "sub" / "1.wav"
             soniox_tts.soniox_tts("Xin chào", target)
-            self.assertEqual(target.read_bytes(), b"RIFFwav")
+            self.assertEqual(target.read_bytes(), b"ID3mp3")
         self.assertEqual(post.call_count, 2)
         self.assertEqual(post.call_args.kwargs["headers"], {"Authorization": "Bearer key"})
         self.assertEqual(post.call_args.args[0], soniox_tts.TTS_URL)
+
+    def test_streamed_wav_sizes_are_rewritten(self):
+        import io, struct, wave
+        pcm = b"\x01\x00" * 2400
+        header = (b"RIFF" + struct.pack("<I", 0xFFFFFFFF) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, 24000, 48000, 2, 16)
+                  + b"data" + struct.pack("<I", 0xFFFFFFFF))
+        fixed = soniox_tts.fix_wav_sizes(header + pcm)
+        with wave.open(io.BytesIO(fixed)) as audio:
+            self.assertEqual(audio.getnframes(), 2400)
+        self.assertEqual(soniox_tts.fix_wav_sizes(b"not wav"), b"not wav")
 
     def test_client_error_is_not_retried(self):
         with patch.object(soniox_tts, "configured_api_key", return_value="key"), patch.object(
@@ -68,13 +78,20 @@ class SonioxTtsTests(unittest.TestCase):
                 soniox_tts.soniox_tts("x", "unused.wav")
         self.assertEqual(post.call_count, 1)
 
-    def test_voices_are_paged_for_the_selected_model(self):
-        pages = [Reply(200, {"voices": [{"id": "Linh"}], "next_page_cursor": "c2"}),
+    def test_ready_cloned_voices_come_first_then_paged_shared_voices(self):
+        cloned = {"voices": [
+            {"id": "uuid-1", "name": "Giọng BBook", "models": [{"model": "tts-rt-v2", "status": "ready"}]},
+            {"id": "uuid-2", "name": "Đang xử lý", "models": [{"model": "tts-rt-v2", "status": "processing"}]},
+        ], "next_page_cursor": None}
+        pages = [Reply(200, cloned),
+                 Reply(200, {"voices": [{"id": "Linh"}], "next_page_cursor": "c2"}),
                  Reply(200, {"voices": [{"id": "Mai"}], "next_page_cursor": None})]
         with patch.object(soniox_tts.requests, "get", side_effect=pages) as get:
-            self.assertEqual([v["id"] for v in soniox_tts.list_voices("key")], ["Linh", "Mai"])
-        self.assertEqual(get.call_args_list[0].kwargs["params"], {"model": "tts-rt-v2", "limit": 200})
-        self.assertEqual(get.call_args_list[1].kwargs["params"]["cursor"], "c2")
+            voices = soniox_tts.list_voices("key")
+        self.assertEqual([v["id"] for v in voices], ["uuid-1", "Linh", "Mai"])
+        self.assertEqual((voices[0]["name"], voices[0]["accent"]), ("Giọng BBook", soniox_tts.CLONED))
+        self.assertEqual(get.call_args_list[1].kwargs["params"], {"model": "tts-rt-v2", "limit": 200})
+        self.assertEqual(get.call_args_list[2].kwargs["params"]["cursor"], "c2")
 
     def test_soniox_is_a_selectable_provider(self):
         self.assertEqual(PROVIDERS["Soniox"], ("soniox_tts",))

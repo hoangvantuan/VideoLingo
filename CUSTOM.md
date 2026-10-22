@@ -54,6 +54,8 @@ soniox_tts:
   model: 'tts-rt-v2'
 ```
 
-- Danh sách giọng lấy từ `GET /v1/shared-voices` (có phân trang), được cache 1 giờ trên giao diện.
+- Danh sách giọng = giọng clone của project (`GET /v1/voices`, chỉ lấy giọng `ready` cho model đang dùng, nhóm accent `cloned`) + giọng có sẵn (`GET /v1/shared-voices`). Cả hai đều có phân trang; danh sách được cache 1 giờ trên giao diện, giọng mới clone sẽ hiện sau tối đa 1 giờ hoặc khi khởi động lại.
+- Giọng clone được lưu vào `soniox_tts.voice` bằng ID (UUID).
+- Soniox trả WAV dạng stream với kích thước RIFF/data = `0xFFFFFFFF`; `fix_wav_sizes` ghi lại kích thước thật trước khi lưu file.
 - Nhãn trên giao diện là chữ cố định, không qua `t()`, nên không phải sửa file bản dịch.
 - Test upstream `test_mai_sidebar_*` đọc `config.yaml` đang dùng; chúng sẽ lỗi nếu `whisper.runtime` cục bộ khác `local`. Chạy test trên `config.yaml` sạch để đánh giá đúng.

@@ -16,7 +16,8 @@ def _voices(api_key, model):
 
 
 def _voice_label(voice):
-    parts = [voice["id"], voice.get("gender") or "", voice.get("age") or "", voice.get("accent") or ""]
+    parts = [voice.get("name") or voice["id"], voice.get("gender") or "", voice.get("age") or "",
+             voice.get("accent") or ""]
     description = (voice.get("description") or "").strip()
     if description:
         parts.append(description[:70] + ("…" if len(description) > 70 else ""))
@@ -35,7 +36,8 @@ def render():
         st.warning(f"Could not load Soniox voices: {error}")
     if voices:
         by_id = {voice["id"]: voice for voice in voices}
-        accents = sorted({voice.get("accent") or "other" for voice in voices})
+        accents = sorted({voice.get("accent") or "other" for voice in voices},
+                         key=lambda name: (name != soniox_tts.CLONED, name))
         default_accent = (by_id.get(current) or {}).get("accent") or "all"
         accent = st.selectbox("Soniox voice accent", ["all"] + accents, key="soniox_tts_accent",
                               index=(["all"] + accents).index(default_accent)
