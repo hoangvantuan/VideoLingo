@@ -8,7 +8,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 |---|---|
 | `core/asr_backend/soniox_asr.py` | F1 — runtime ASR `soniox` (Soniox async API `stt-async-v5`, qua SDK chính thức `soniox`) |
 | `tests/test_soniox_asr.py` | Test cho F1 |
-| `core/tts_backend/soniox_tts.py` | F6 — phương thức lồng tiếng `soniox_tts` (Soniox TTS `tts-rt-v2`) |
+| `core/tts_backend/soniox_tts.py` | F6 — phương thức lồng tiếng `soniox_tts` (Soniox TTS `tts-rt-v2`, qua SDK chính thức `soniox`) |
 | `core/st_utils/soniox_tts_settings.py` | F6 — giao diện chọn giọng (lọc theo accent/giới tính), ngôn ngữ, tốc độ |
 | `tests/test_soniox_tts.py` | Test cho F6 |
 | `core/utils/llm_profile.py` | F7 — giải quyết Profile đang dùng (`api.profile` → `llm_profiles`) thành model, base_url, credential, JSON mode, `reasoning_effort` |
@@ -94,9 +94,10 @@ soniox_tts:
   model: 'tts-rt-v2'
 ```
 
+- Gọi Soniox qua SDK Python chính thức `soniox` (`client.tts.generate`, `client.voices.list_all` / `list_all_shared`). SDK không tự thử lại, nên backend vẫn thử lại khi lỗi kết nối, 408, 429, 5xx.
 - Danh sách giọng = giọng clone của project (`GET /v1/voices`, chỉ lấy giọng `ready` cho model đang dùng, nhóm accent `cloned`) + giọng có sẵn (`GET /v1/shared-voices`). Cả hai đều có phân trang; danh sách được cache 1 giờ trên giao diện, giọng mới clone sẽ hiện sau tối đa 1 giờ hoặc khi khởi động lại.
 - Giọng clone được lưu vào `soniox_tts.voice` bằng ID (UUID).
-- Soniox trả WAV dạng stream với kích thước RIFF/data = `0xFFFFFFFF`; `fix_wav_sizes` ghi lại kích thước thật trước khi lưu file.
+- Soniox trả WAV dạng stream với kích thước RIFF/data = `0xFFFFFFFF`; SDK trả nguyên bytes, không sửa header, nên `fix_wav_sizes` vẫn ghi lại kích thước thật trước khi lưu file.
 - Nhãn trên giao diện là chữ cố định, không qua `t()`, nên không phải sửa file bản dịch.
 - Test upstream `test_mai_sidebar_*` đọc `config.yaml` đang dùng; chúng sẽ lỗi nếu `whisper.runtime` cục bộ khác `local`. Chạy test trên `config.yaml` sạch để đánh giá đúng.
 
