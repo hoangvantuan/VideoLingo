@@ -11,12 +11,28 @@ display_language: "zh-CN"
 
 # API settings
 api:
+  # *Custom (F7): active LLM profile, a name from llm_profiles; '' = the custom profile (this api: section)
+  profile: ''
   key: 'YOUR_API_KEY'
   base_url: 'https://api.openlux.ai/v1'
   model: 'gpt-6-luna'
   llm_support_json: false
 # *Number of LLM multi-threaded accesses, set to 1 if using local LLM
 max_workers: 4
+# *Custom (F7): named LLM profiles for the Translate stage, chosen by api.profile. See CUSTOM.md "Cấu hình F7".
+llm_profiles:
+  openrouter-free:
+    # *Provider; openrouter has a default base_url, other providers need base_url
+    provider: openrouter
+    # *Model name sent to the provider
+    model: 'deepseek/deepseek-chat-v3.1:free'
+    # *Environment variable holding the key, read before api_key
+    api_key_env: 'OPENROUTER_API_KEY'
+    # *Fallback key; leave empty and use the environment variable
+    api_key: ''
+    # *Optional overrides; a missing key uses api.llm_support_json, and reasoning_effort is then not sent
+    llm_support_json: false
+    max_workers: 1
 # *Custom: cap on parallel TTS requests (0 = same as max_workers). VieNeu-TTS serves 1 stream.
 tts_max_workers: 0
 

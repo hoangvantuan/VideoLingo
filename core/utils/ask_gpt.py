@@ -9,6 +9,7 @@ from openai import OpenAI
 from core.utils.config_utils import load_key
 from rich import print as rprint
 from core.utils.decorator import except_handler
+from core.utils.llm_profile import active_profile  # custom
 
 # ------------
 # cache gpt response
@@ -104,17 +105,18 @@ def parse_json_response(resp_content):
 
 @except_handler("GPT request failed", retry=5)
 def ask_gpt(prompt, resp_type=None, valid_def=None, log_title="default"):
-    api_key = get_api_key()
+    profile = active_profile()  # custom
+    api_key = profile.credential()  # custom
     # check cache
     cached = _load_cache(prompt, resp_type, log_title)
     if cached:
         rprint("use cache response")
         return cached
 
-    model = load_key("api.model")
-    base_url = normalize_base_url(load_key("api.base_url"))
+    model = profile.model  # custom
+    base_url = normalize_base_url(profile.base_url) if profile.normalize_base_url else profile.base_url  # custom
     client = OpenAI(api_key=api_key, base_url=base_url)
-    response_format = {"type": "json_object"} if resp_type == "json" and load_key("api.llm_support_json") else None
+    response_format = {"type": "json_object"} if resp_type == "json" and profile.llm_support_json else None  # custom
 
     messages = [{"role": "user", "content": prompt}]
 
@@ -125,6 +127,8 @@ def ask_gpt(prompt, resp_type=None, valid_def=None, log_title="default"):
     )
     if response_format is not None:
         params["response_format"] = response_format
+    if profile.reasoning_effort:  # custom
+        params["reasoning_effort"] = profile.reasoning_effort  # custom
     resp_raw = client.chat.completions.create(**params)
 
     # process and return full result
