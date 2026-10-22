@@ -15,6 +15,11 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/utils/original_audio.py` | F10 — lồng tiếng kiểu Thuyết minh: đọc `original_volume`, dò track âm thanh của video, dựng bộ lọc trộn |
 | `core/st_utils/original_volume_setting.py` | F10 — thanh trượt "Âm lượng gốc (Thuyết minh)" trong Dubbing Settings |
 | `tests/test_original_volume.py` | Test cho F10 (lệnh FFmpeg của bước ghép video, không chạy FFmpeg thật) |
+| `tests/test_tts_max_workers.py` | Test giới hạn số request TTS song song (cả `vertex_tts.max_workers`) |
+| `core/utils/google_credentials.py` | F8/F9 — credential Google dùng chung: `access_token()`, `auth_headers()`, `project()`, `GoogleCredentialError` |
+| `tests/test_google_credentials.py` | Test credential Google dùng chung |
+| `core/tts_backend/vertex_tts.py` | F9 — phương thức lồng tiếng `vertex_tts` (Cloud Text-to-Speech REST, Chirp 3 HD) |
+| `tests/test_vertex_tts.py` | Test cho F9 (backend + nhánh dispatcher) |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -34,7 +39,10 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `api.py` | F10: field tùy chọn `original_volume` (0–1) của `POST /run`, ghi vào `config.yaml` | 3 |
 | `core/st_utils/sidebar_setting.py` (F10) | gọi `original_volume_setting.render()` cuối Dubbing Settings | 2 |
 | `tests/test_api.py` | F10: test `test_run_saves_original_volume` | 1 hàm |
-| `config.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10) | 3 + 12 + 3 |
+| `core/tts_backend/tts_main.py` (F9) | import + nhánh `elif TTS_METHOD == 'vertex_tts'` | 3 |
+| `core/_10_gen_audio.py` (F9) | khi `tts_method == 'vertex_tts'`, `vertex_tts.max_workers` thay toàn bộ số luồng TTS | 2 |
+| `requirements.txt` (F8/F9) | `google-auth` | 2 |
+| `config.example.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và `vertex_tts` trong ghi chú `tts_method` | 3 + 12 + 3 + 20 |
 
 ## Cấu hình F1 (Soniox)
 
@@ -84,3 +92,60 @@ original_volume: 0.25   # 0–1, nhân thẳng lên track âm thanh gốc; 0 = c
 - Video không có track âm thanh: chỉ xuất giọng lồng tiếng, kèm cảnh báo.
 - Mặc định trong code là `0`; `config.example.yaml` của fork đặt `0.25`. Âm lượng gốc cố định suốt video; tự hạ khi có giọng Việt (sidechain ducking) chưa làm.
 - Nhãn thanh trượt là chữ cố định, không qua `t()`.
+
+## Cấu hình F9 (Vertex TTS)
+
+Chưa có màn hình chọn giọng (ticket #6): sửa tay `config.yaml`.
+
+```yaml
+tts_method: 'vertex_tts'
+vertex:
+  project: 'videolingo-512414'  # trống thì dùng project của credential
+  location_llm: 'global'        # dùng cho Provider Vertex của Khâu Dịch
+vertex_tts:
+  voice: ''          # trống = vi-VN-Chirp3-HD-Aoede; tên giọng Cloud TTS, ví dụ vi-VN-Chirp3-HD-Charon
+  language: 'vi-VN'
+  speed: 1.0         # 0.25–2.0, ngoài khoảng sẽ bị kẹp
+  max_workers: 4     # thay toàn bộ max_workers / tts_max_workers khi đang dùng vertex_tts
+```
+
+- Gọi REST `POST https://texttospeech.googleapis.com/v1/text:synthesize` (không dùng `google-cloud-texttospeech`), `audioEncoding: LINEAR16`: Cloud TTS trả WAV có header nên ghi thẳng ra `.wav`.
+- Header `x-goog-user-project` = `vertex.project` (hoặc project của credential), nên service account cần role `serviceusage.serviceUsageConsumer`.
+- Lỗi API (quota 429, giọng sai 400, credential 401/403) báo `HTTP <mã> <thông điệp>` và không tự thử lại trong backend: vòng thử lại 3 lần của `tts_main` xử lý. Lỗi 401/403 và thiếu credential/project chỉ tới mục "Setup Google Cloud".
+- Quota Chirp 3 HD: 200 request/phút/project, tối đa 5.000 byte mỗi request; 4 luồng là dư.
+- Credential dùng chung (`core/utils/google_credentials.py`): Application Default Credentials, scope `cloud-platform`, token được làm mới khi hết hạn, có khóa cho nhiều luồng. Đổi `GOOGLE_APPLICATION_CREDENTIALS` thì khởi động lại VideoLingo.
+
+## Setup Google Cloud
+
+Dùng cho Provider Vertex (Khâu Dịch) và `vertex_tts` (Khâu Lồng tiếng). Thay `PROJECT` bằng project ID (ví dụ `videolingo-512414`).
+
+```bash
+PROJECT=videolingo-512414
+SA=videolingo-pc
+gcloud config set project $PROJECT
+# 1. Bật API
+gcloud services enable aiplatform.googleapis.com texttospeech.googleapis.com
+# 2. Tạo service account
+gcloud iam service-accounts create $SA --display-name "VideoLingo"
+# 3. Cấp 2 role (đủ cho Gemini trên Vertex và Cloud TTS)
+for role in roles/aiplatform.user roles/serviceusage.serviceUsageConsumer; do
+  gcloud projects add-iam-policy-binding $PROJECT \
+    --member "serviceAccount:$SA@$PROJECT.iam.gserviceaccount.com" --role $role
+done
+# 4. Tạo key JSON NGOÀI repo, chỉ chủ sở hữu đọc được
+mkdir -p ~/.config/videolingo
+gcloud iam service-accounts keys create ~/.config/videolingo/gcp-sa.json \
+  --iam-account $SA@$PROJECT.iam.gserviceaccount.com
+chmod 600 ~/.config/videolingo/gcp-sa.json
+```
+
+5. Đặt biến môi trường cho tiến trình VideoLingo:
+   - Shell: `export GOOGLE_APPLICATION_CREDENTIALS=~/.config/videolingo/gcp-sa.json`
+   - systemd: thêm vào mục `[Service]` của unit (đường dẫn tuyệt đối), rồi `systemctl daemon-reload && systemctl restart <unit>`:
+
+     ```ini
+     Environment=GOOGLE_APPLICATION_CREDENTIALS=/home/<user>/.config/videolingo/gcp-sa.json
+     ```
+6. Đặt `vertex.project` trong `config.yaml` (hoặc để trống để dùng project trong key JSON).
+
+Không commit key JSON. Thu hồi key: `gcloud iam service-accounts keys list/delete --iam-account ...`.
