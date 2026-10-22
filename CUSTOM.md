@@ -6,9 +6,9 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 
 | File | Mục đích |
 |---|---|
-| `core/asr_backend/soniox_asr.py` | F1 — runtime ASR `soniox` (Soniox async API `stt-async-v5`) |
+| `core/asr_backend/soniox_asr.py` | F1 — runtime ASR `soniox` (Soniox async API `stt-async-v5`, qua SDK chính thức `soniox`) |
 | `tests/test_soniox_asr.py` | Test cho F1 |
-| `core/tts_backend/soniox_tts.py` | F6 — phương thức lồng tiếng `soniox_tts` (Soniox TTS `tts-rt-v2`) |
+| `core/tts_backend/soniox_tts.py` | F6 — phương thức lồng tiếng `soniox_tts` (Soniox TTS `tts-rt-v2`, qua SDK chính thức `soniox`) |
 | `core/st_utils/soniox_tts_settings.py` | F6 — giao diện chọn giọng (lọc theo accent/giới tính), ngôn ngữ, tốc độ |
 | `tests/test_soniox_tts.py` | Test cho F6 |
 | `core/utils/llm_profile.py` | F7 — giải quyết Profile đang dùng (`api.profile` → `llm_profiles`) thành model, base_url, credential, JSON mode, `reasoning_effort` |
@@ -63,6 +63,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/st_utils/tts_settings.py` (F9) | provider `"Vertex AI"` trong `PROVIDERS` (không có trong `KEY_PATHS`: xác thực bằng credential Google) | 1 |
 | `core/st_utils/sidebar_setting.py` (F9) | nhãn `vertex_tts` + nhánh gọi `vertex_tts_settings.render()` | 4 |
 | `requirements.txt` (F8/F9) | `google-auth` | 2 |
+| `requirements.txt` (F1/F6) | `soniox` (SDK chính thức, `>=2.10,<3`) | 2 |
 | `config.example.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
 
 ## Cấu hình F1 (Soniox)
@@ -75,6 +76,7 @@ whisper:
 ```
 
 - Key đọc theo thứ tự: `SONIOX_API_KEY` → `whisper.soniox_api_key`.
+- Gọi Soniox qua SDK Python chính thức `soniox` (sync `SonioxClient`). SDK không tự thử lại, nên backend vẫn thử lại khi lỗi kết nối, 408, 429, 5xx (tối đa 4 lần), và tự poll trạng thái thay vì `client.stt.wait()` để `check_cancel()` vẫn hủy được trong lúc chờ.
 - File âm thanh và transcription trên Soniox luôn bị xóa sau mỗi đoạn, kể cả khi lỗi.
 - Cache ASR dùng nhánh chung của `transcription_cache.cache_key`, nên đổi phiên bản package local (qwen-asr, transformers, demucs…) sẽ làm mất cache Soniox. Ngược lại, đổi `MODEL` trong `soniox_asr.py` **không** tự làm mất cache — khi đổi model, xóa `.cache/asr` hoặc chấp nhận dùng kết quả cũ. Chấp nhận để không phải sửa thêm file lõi.
 
@@ -92,9 +94,10 @@ soniox_tts:
   model: 'tts-rt-v2'
 ```
 
+- Gọi Soniox qua SDK Python chính thức `soniox` (`client.tts.generate`, `client.voices.list_all` / `list_all_shared`). SDK không tự thử lại, nên backend vẫn thử lại khi lỗi kết nối, 408, 429, 5xx.
 - Danh sách giọng = giọng clone của project (`GET /v1/voices`, chỉ lấy giọng `ready` cho model đang dùng, nhóm accent `cloned`) + giọng có sẵn (`GET /v1/shared-voices`). Cả hai đều có phân trang; danh sách được cache 1 giờ trên giao diện, giọng mới clone sẽ hiện sau tối đa 1 giờ hoặc khi khởi động lại.
 - Giọng clone được lưu vào `soniox_tts.voice` bằng ID (UUID).
-- Soniox trả WAV dạng stream với kích thước RIFF/data = `0xFFFFFFFF`; `fix_wav_sizes` ghi lại kích thước thật trước khi lưu file.
+- Soniox trả WAV dạng stream với kích thước RIFF/data = `0xFFFFFFFF`; SDK trả nguyên bytes, không sửa header, nên `fix_wav_sizes` vẫn ghi lại kích thước thật trước khi lưu file.
 - Nhãn trên giao diện là chữ cố định, không qua `t()`, nên không phải sửa file bản dịch.
 - Test upstream `test_mai_sidebar_*` đọc `config.yaml` đang dùng; chúng sẽ lỗi nếu `whisper.runtime` cục bộ khác `local`. Chạy test trên `config.yaml` sạch để đánh giá đúng.
 

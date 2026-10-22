@@ -1,21 +1,24 @@
-"""Soniox async speech-to-text backend (custom fork, see CUSTOM.md)."""
+"""Soniox async speech-to-text backend on the official soniox SDK (custom fork, see CUSTOM.md)."""
 
 import os
 import time
 
-import requests
+import httpx
 from rich import print as rprint
+from soniox import SonioxClient
+from soniox.errors import SonioxAPIError, SonioxError
+from soniox.types import CreateTranscriptionConfig
 
 from core.asr_backend.audio_preprocess import audio_slice_wav
 from core.utils import check_cancel, load_key, load_key_or
 
-API_BASE = "https://api.soniox.com/v1"
 MODEL = "stt-async-v5"
 AUTO_HINTS = ["en", "ja"]
 ATTEMPTS = 4
 RETRY_STATUS = {408, 429}
 POLL_INTERVAL = 2
 POLL_TIMEOUT = 900
+TIMEOUT = 120
 SPLIT_GAP = 1
 
 
@@ -29,55 +32,53 @@ def configured_api_key():
     return api_key
 
 
-def transcription_config(language, file_id):
-    config = {"model": MODEL, "file_id": file_id, "enable_speaker_diarization": True}
+def transcription_config(language):
+    config = CreateTranscriptionConfig(enable_speaker_diarization=True)
     if language and language != "auto":
-        config["language_hints"] = [language]
+        config.language_hints = [language]
     else:
-        config["language_hints"] = AUTO_HINTS
-        config["enable_language_identification"] = True
+        config.language_hints = AUTO_HINTS
+        config.enable_language_identification = True
     return config
 
 
-def _request(session, method, path, **kwargs):
-    """Call the Soniox API, retrying connection errors, 408/429 and 5xx."""
+def _call(action, method, *args, **kwargs):
+    """Call the SDK, retrying connection errors, 408/429 and 5xx (the SDK does not retry)."""
     for attempt in range(1, ATTEMPTS + 1):
         check_cancel()
         try:
-            response = session.request(method, f"{API_BASE}{path}", timeout=120, **kwargs)
-        except (requests.ConnectionError, requests.Timeout) as error:
+            return method(*args, **kwargs)
+        except httpx.TransportError as error:
             if attempt == ATTEMPTS:
                 raise
             rprint(f"[yellow]Soniox connection failed ({error}); retrying {attempt}/{ATTEMPTS - 1}[/yellow]")
-        else:
-            retryable = response.status_code in RETRY_STATUS or 500 <= response.status_code < 600
-            if response.ok or not retryable or attempt == ATTEMPTS:
-                break
-            rprint(f"[yellow]Soniox HTTP {response.status_code}; retrying {attempt}/{ATTEMPTS - 1}[/yellow]")
+        except SonioxAPIError as error:
+            status = error.status_code or 0
+            if not (status in RETRY_STATUS or 500 <= status < 600) or attempt == ATTEMPTS:
+                raise RuntimeError(f"Soniox {action} failed: {error}") from error
+            rprint(f"[yellow]Soniox HTTP {status}; retrying {attempt}/{ATTEMPTS - 1}[/yellow]")
         time.sleep(3 * attempt)
-    if not response.ok:
-        raise RuntimeError(f"Soniox {method} {path} failed: HTTP {response.status_code} {response.text[:500]}")
-    return response.json() if response.content else {}
 
 
-def _wait_until_completed(session, transcription_id):
+def _wait_until_completed(client, transcription_id):
+    # Own poll loop instead of client.stt.wait(): it sleeps without check_cancel().
     deadline = time.time() + POLL_TIMEOUT
     while True:
-        status = _request(session, "GET", f"/transcriptions/{transcription_id}")
-        if status.get("status") == "completed":
+        status = _call("status", client.stt.get, transcription_id)
+        if status.status == "completed":
             return
-        if status.get("status") in ("error", "failed"):
-            raise RuntimeError(f"Soniox transcription failed: {status.get('error_message', 'unknown error')}")
+        if status.status == "error":
+            raise RuntimeError(f"Soniox transcription failed: {status.error_message or 'unknown error'}")
         if time.time() > deadline:
             raise TimeoutError(f"Soniox transcription did not finish within {POLL_TIMEOUT} seconds")
         time.sleep(POLL_INTERVAL)
 
 
-def _delete(session, path):
+def _delete(delete, kind, resource_id):
     try:
-        session.delete(f"{API_BASE}{path}", timeout=30)
-    except requests.RequestException as error:
-        rprint(f"[yellow]Could not delete Soniox resource {path}: {error}[/yellow]")
+        delete(resource_id)
+    except (SonioxError, httpx.HTTPError) as error:
+        rprint(f"[yellow]Could not delete Soniox {kind} {resource_id}: {error}[/yellow]")
 
 
 def tokens_to_words(tokens, language, no_space_languages, offset=0.0):
@@ -148,23 +149,21 @@ def transcribe_audio_soniox(raw_audio_path, vocal_audio_path, start=None, end=No
     started = time.time()
     audio = audio_slice_wav(vocal_audio_path, start, end)
 
-    session = requests.Session()
-    session.headers["Authorization"] = f"Bearer {api_key}"
+    client = SonioxClient(api_key=api_key, timeout_sec=TIMEOUT)
     file_id = transcription_id = None
     try:
-        file_id = _request(session, "POST", "/files",
-                           files={"file": ("audio.wav", audio, "audio/wav")})["id"]
-        transcription_id = _request(session, "POST", "/transcriptions",
-                                    json=transcription_config(language, file_id))["id"]
-        _wait_until_completed(session, transcription_id)
-        transcript = _request(session, "GET", f"/transcriptions/{transcription_id}/transcript")
+        file_id = _call("upload", client.files.upload, audio, filename="audio.wav").id
+        transcription_id = _call("create", client.stt.create, model=MODEL, file_id=file_id,
+                                 config=transcription_config(language)).id
+        _wait_until_completed(client, transcription_id)
+        transcript = _call("transcript", client.stt.get_transcript, transcription_id).model_dump()
     finally:
         # Never leave audio or transcripts behind on Soniox, even on failure.
         if transcription_id:
-            _delete(session, f"/transcriptions/{transcription_id}")
+            _delete(client.stt.delete_if_exists, "transcription", transcription_id)
         if file_id:
-            _delete(session, f"/files/{file_id}")
-        session.close()
+            _delete(client.files.delete_if_exists, "file", file_id)
+        client.close()
 
     parsed = soniox2whisper(transcript, language, no_space_languages, start or 0.0)
     rprint(f"[green]✓ Soniox transcription completed in {time.time() - started:.2f} seconds[/green]")
