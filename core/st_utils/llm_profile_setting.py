@@ -31,7 +31,7 @@ def render():
         return True  # no llm_profiles: the sidebar stays as upstream
 
     chosen = st.selectbox(
-        "LLM profile",
+        "Profile đang dùng",
         options=options,
         index=options.index(current),
         format_func=lambda name: CUSTOM_LABEL if name == CUSTOM_PROFILE else name,

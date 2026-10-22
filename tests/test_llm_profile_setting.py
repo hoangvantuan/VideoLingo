@@ -160,7 +160,7 @@ def _api_inputs_shown(at):
 def test_sidebar_shows_the_upstream_api_inputs_only_for_the_custom_profile(example_config):
     at = AppTest.from_function(_sidebar).run(timeout=30)
     assert not at.exception
-    picker = next(box for box in at.selectbox if box.label == "LLM profile")
+    picker = next(box for box in at.selectbox if box.label == "Profile đang dùng")
     assert picker.value == ""
     assert _api_inputs_shown(at)
 
