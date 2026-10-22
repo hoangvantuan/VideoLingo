@@ -28,6 +28,7 @@ class LLMProfile:
     llm_support_json: bool
     reasoning_effort: Optional[str]  # None: the parameter is not sent
     max_workers: Optional[int]  # None: the general max_workers applies
+    auth_error_hint: Optional[str] = None  # appended to 401/403 errors of the provider
 
 
 def _custom_key():
@@ -69,10 +70,26 @@ def _api_key_provider(default_base_url=None):
     return resolve
 
 
+def _vertex_provider(name, entry):
+    """Custom (F8): Gemini through the OpenAI-compatible endpoint of Vertex, authenticated by the shared Google credential."""
+    from core.utils import google_credentials
+    location = str(load_key_or("vertex.location_llm", "global") or "global").strip()
+    host = "aiplatform.googleapis.com" if location == "global" else f"{location}-aiplatform.googleapis.com"
+    return dict(
+        # built here, never normalized: normalize_base_url rewrites any URL containing "ark"
+        base_url=f"https://{host}/v1/projects/{google_credentials.project()}/locations/{location}/endpoints/openapi",
+        normalize_base_url=False,
+        credential=google_credentials.access_token,
+        llm_support_json=True,
+        auth_error_hint=f"the Google credential needs roles/aiplatform.user on the project; {google_credentials.SETUP_HINT}",
+    )
+
+
 # provider -> resolve(name, entry) giving base_url, normalize_base_url, credential
 # and optionally a default llm_support_json for the provider
 PROVIDERS = {
     "openrouter": _api_key_provider("https://openrouter.ai/api/v1"),
+    "vertex": _vertex_provider,
 }
 
 
