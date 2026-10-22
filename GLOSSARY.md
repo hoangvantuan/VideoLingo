@@ -45,3 +45,17 @@ _Avoid_: legacy profile, profile mặc định
 **Profile đang dùng**:
 LLM profile mà Khâu Dịch sử dụng cho lần chạy hiện tại.
 _Avoid_: default profile
+
+## Playlist
+
+**Playlist**:
+Danh sách video lấy từ một URL mà yt-dlp đọc được (playlist, kênh), mỗi video nhận diện bằng video ID.
+_Avoid_: danh sách phát, list
+
+**Lượt chạy playlist**:
+Một lần xử lý tuần tự các video đã chọn của một Playlist với cùng một bộ cài đặt; là đơn vị được tạm dừng, dừng và tiếp tục.
+_Avoid_: job, batch, queue, hàng đợi
+
+**Trạng thái video**:
+Tình trạng của một video trong Lượt chạy playlist: Chờ, Đang chạy, Xong, Lỗi, hoặc Không khả dụng (private, đã xoá, bị chặn vùng).
+_Avoid_: status, kết quả
