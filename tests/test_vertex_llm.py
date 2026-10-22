@@ -173,3 +173,18 @@ def test_permission_error_of_other_profiles_is_unchanged(setup, monkeypatch):
     with pytest.raises(openai.AuthenticationError) as error:
         ask_gpt_module.ask_gpt("hello", resp_type="json")
     assert "Setup Google Cloud" not in str(error.value)
+
+
+def test_missing_credential_points_to_google_cloud_setup(setup, monkeypatch):
+    import google.auth.exceptions
+    setup()
+
+    def no_credential():
+        raise google.auth.exceptions.DefaultCredentialsError("Could not automatically determine credentials")
+
+    monkeypatch.setattr(google_credentials, "_load_default", no_credential)
+    with pytest.raises(RuntimeError) as error:
+        ask_gpt_module.ask_gpt("hello", resp_type="json")
+    assert "GOOGLE_APPLICATION_CREDENTIALS" in str(error.value)
+    assert "Setup Google Cloud" in str(error.value)
+    assert FakeOpenAI.clients == []
