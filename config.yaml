@@ -17,6 +17,8 @@ api:
   llm_support_json: false
 # *Number of LLM multi-threaded accesses, set to 1 if using local LLM
 max_workers: 4
+# *Custom: cap on parallel TTS requests (0 = same as max_workers). VieNeu-TTS serves 1 stream.
+tts_max_workers: 0
 
 # Language settings, written into the prompt, can be described in natural language
 target_language: '简体中文'

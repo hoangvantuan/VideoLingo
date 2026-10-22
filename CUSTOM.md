@@ -11,6 +11,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/tts_backend/soniox_tts.py` | F6 — phương thức lồng tiếng `soniox_tts` (Soniox TTS `tts-rt-v2`) |
 | `core/st_utils/soniox_tts_settings.py` | F6 — giao diện chọn giọng (lọc theo accent/giới tính), ngôn ngữ, tốc độ |
 | `tests/test_soniox_tts.py` | Test cho F6 |
+| `tests/test_tts_max_workers.py` | Test giới hạn số request TTS song song |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -25,7 +26,8 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/tts_backend/tts_main.py` | import + nhánh `elif TTS_METHOD == 'soniox_tts'` | 3 |
 | `core/st_utils/tts_settings.py` | provider `"Soniox"` trong `PROVIDERS` và `KEY_PATHS` | 2 |
 | `core/st_utils/sidebar_setting.py` (F6) | nhãn `soniox_tts` + nhánh gọi `soniox_tts_settings.render()` | 4 |
-| `config.yaml` | khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:` | 3 + 12 |
+| `core/_10_gen_audio.py` | giới hạn số luồng TTS bằng `tts_max_workers` (VieNeu-TTS chỉ phục vụ 1 stream, gửi song song bị HTTP 429 `queue full`) | 1 |
+| `config.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:` | 3 + 12 |
 
 ## Cấu hình F1 (Soniox)
 
