@@ -150,6 +150,7 @@ def test_openai_tts_keys_show_for_openai_tts_only(config):
     at = run()
     at = widget(at, "text_input", "Base URL OpenAI TTS (openai_tts.base_url)").input("https://tts.example.com/v1").run(timeout=30)
     at = widget(at, "text_input", "Model OpenAI TTS (openai_tts.model)").input("tts-1").run(timeout=30)
+    at = widget(at, "text_input", "Model OpenAI TTS (openai_tts.model)").input("").run(timeout=30)
     assert not at.exception
     assert load_key("openai_tts.base_url") == "https://tts.example.com/v1"
     assert load_key("openai_tts.model") == "tts-1"

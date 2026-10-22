@@ -27,6 +27,8 @@ def _number(label, key, min_value, max_value, step, help, fallback):
 def _choice(label, key, options, help, fallback, format_func=str):
     """A selectbox; a hand-edited value that is not an option stays selectable."""
     stored = config_fields.current(key, fallback)
+    if isinstance(fallback, str) and not isinstance(stored, str):  # ytb_resolution: 1080 written without quotes
+        stored = str(stored)
     options = list(options) if stored in options else [stored, *options]
     value = st.selectbox(label, options, index=options.index(stored), help=help, format_func=format_func,
                          key=f"advanced_{key}")
@@ -41,10 +43,12 @@ def _toggle(label, key, help, fallback):
         config_fields.save(key, value)
 
 
-def _text(label, key, help, fallback=""):
+def _text(label, key, help, fallback):
+    """A text field; emptying it keeps the stored value, the processing code needs one."""
     stored = str(config_fields.current(key, fallback) or "")
-    value = st.text_input(label, value=stored, help=help, key=f"advanced_{key}").strip()
-    if value != stored:
+    value = st.text_input(label, value=stored, help=f"{help}. Để trống = giữ giá trị đang có",
+                          key=f"advanced_{key}").strip()
+    if value and value != stored:
         config_fields.save(key, value)
 
 
@@ -80,6 +84,10 @@ STYLE_KINDS = {"source": "phụ đề gốc", "translation": "phụ đề dịch
 COLOR_HELP = "&HBBGGRR, &HAABBGGRR (AA = độ trong suốt) hoặc #RRGGBB"
 
 
+STYLE_HELP = {"outline_width": "Độ dày viền chữ, theo điểm ảnh của phụ đề",
+              "margin_v": "Khoảng cách từ mép dưới video tới phụ đề dịch"}
+
+
 def _style(kind, key, label, field):
     """One value of subtitle.style.<kind> that the Subtitle Style popover does not edit."""
     from core.utils.subtitle_style import get_subtitle_style, save_subtitle_style, to_ass_color
@@ -94,7 +102,7 @@ def _style(kind, key, label, field):
             return
     else:
         value = st.number_input(label, min_value=0, max_value=200, value=int(style[key]), step=1,
-                                key=f"advanced_style_{kind}_{key}")
+                                help=STYLE_HELP[key], key=f"advanced_style_{kind}_{key}")
     if value != style[key]:
         save_subtitle_style({kind: {**style, key: value}})
 
