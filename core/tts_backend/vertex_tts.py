@@ -16,17 +16,25 @@ VOICE = "vi-VN-Chirp3-HD-Aoede"
 MIN_SPEED, MAX_SPEED = 0.25, 2.0  # speakingRate range of Cloud TTS
 
 
+def configured_language():
+    return load_key_or("vertex_tts.language", LANGUAGE) or LANGUAGE
+
+
+def configured_speed():
+    """vertex_tts.speed as written, not clamped."""
+    return float(load_key_or("vertex_tts.speed", 1.0) or 1.0)
+
+
 def request_payload(text):
-    speed = float(load_key_or("vertex_tts.speed", 1.0) or 1.0)
     return {
         "input": {"text": text},
-        "voice": {"languageCode": load_key_or("vertex_tts.language", LANGUAGE) or LANGUAGE,
-                  "name": load_key_or("vertex_tts.voice", VOICE) or VOICE},
-        "audioConfig": {"audioEncoding": "LINEAR16", "speakingRate": min(MAX_SPEED, max(MIN_SPEED, speed))},
+        "voice": {"languageCode": configured_language(), "name": load_key_or("vertex_tts.voice", VOICE) or VOICE},
+        "audioConfig": {"audioEncoding": "LINEAR16",
+                        "speakingRate": min(MAX_SPEED, max(MIN_SPEED, configured_speed()))},
     }
 
 
-def _error_message(response):
+def _error_message(response, action="request"):
     try:
         message = response.json().get("error", {}).get("message")
     except ValueError:
@@ -34,7 +42,7 @@ def _error_message(response):
     message = message or response.text[:300]
     if response.status_code in (401, 403):
         message += f"; check the service account and its roles, {google_credentials.SETUP_HINT}"
-    return f"Cloud TTS request failed: HTTP {response.status_code} {message}"
+    return f"Cloud TTS {action} failed: HTTP {response.status_code} {message}"
 
 
 def request_headers():
@@ -50,7 +58,7 @@ def list_voices(language=LANGUAGE):
     """Voices of `language`, Chirp 3 HD first: [{"name", "ssmlGender", "languageCodes"...}]."""
     response = requests.get(VOICES_URL, headers=request_headers(), params={"languageCode": language}, timeout=30)
     if not response.ok:
-        raise RuntimeError(_error_message(response).replace("Cloud TTS request", "Cloud TTS voice list"))
+        raise RuntimeError(_error_message(response, action="voice list"))
     voices = [voice for voice in response.json().get("voices", []) if language in voice.get("languageCodes", [])]
     return sorted(voices, key=lambda voice: (not _is_chirp3_hd(voice), voice["name"]))
 
