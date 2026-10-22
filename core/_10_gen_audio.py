@@ -112,6 +112,8 @@ def generate_tts_audio(tasks_df: pd.DataFrame) -> pd.DataFrame:
         # for gpt_sovits, do not use parallel to avoid mistakes
         max_workers = load_key("max_workers") if load_key("tts_method") != "gpt_sovits" else 1
         max_workers = min(max_workers, int(load_key_or("tts_max_workers", 0) or max_workers))  # custom: VieNeu has 1 stream
+        if load_key("tts_method") == "vertex_tts":  # custom: Cloud TTS has its own worker count
+            max_workers = int(load_key_or("vertex_tts.max_workers", 4) or 4)  # custom
         # parallel processing for remaining tasks
         if len(tasks_df) > warmup_size:
             remaining_tasks = tasks_df.iloc[warmup_size:].copy()
