@@ -15,6 +15,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/utils/llm_profile.py` | F7 — giải quyết Profile đang dùng (`api.profile` → `llm_profiles`) thành model, base_url, credential, JSON mode, `reasoning_effort` |
 | `tests/test_llm_profile.py` | Test cho F7 (qua seam `ask_gpt`, client OpenAI giả) |
 | `tests/test_llm_max_workers.py` | Test cho F7: số luồng Khâu Dịch theo Profile đang dùng (`llm_max_workers()`) |
+| `core/st_utils/llm_profile_setting.py` | F7 — ô chọn Profile đang dùng trong LLM Configuration của sidebar, hiện Provider/model, ghi `api.profile` |
+| `tests/test_llm_profile_setting.py` | Test cho ô chọn profile (Streamlit `AppTest`, config giả) |
 | `core/utils/original_audio.py` | F10 — lồng tiếng kiểu Thuyết minh: đọc `original_volume`, dò track âm thanh của video, dựng bộ lọc trộn |
 | `core/st_utils/original_volume_setting.py` | F10 — thanh trượt "Âm lượng gốc (Thuyết minh)" trong Dubbing Settings |
 | `tests/test_original_volume.py` | Test cho F10 (lệnh FFmpeg của bước ghép video, không chạy FFmpeg thật) |
@@ -45,6 +47,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/_5_split_sub.py` | F7 — import + số luồng chia phụ đề (2 chỗ) lấy từ `llm_max_workers()` | 3 |
 | `tests/test_backlog_fixes.py` | F7 — `_check_api` patch thêm `load_key`/`load_key_or` của `llm_profile`; test chia phụ đề patch `llm_max_workers` | 2 + 2 |
 | `config.example.yaml` (F7) | khóa `api.profile`; mục `llm_profiles:` mẫu | 2 + 14 |
+| `core/st_utils/sidebar_setting.py` (F7) | các ô nhập API gốc chuyển vào hàm lồng `custom_llm_inputs()`, chỉ gọi khi `llm_profile_setting.render()` báo đang chọn Profile custom | 5 |
 | `core/_12_dub_to_vid.py` | F10: import `original_audio`; `original_volume > 0` thay track nền demucs bằng track âm thanh gốc của video | 7 |
 | `api.py` | F10: field tùy chọn `original_volume` (0–1) của `POST /run`, ghi vào `config.yaml` | 3 |
 | `core/st_utils/sidebar_setting.py` (F10) | gọi `original_volume_setting.render()` cuối Dubbing Settings | 2 |
@@ -127,7 +130,8 @@ Mỗi profile bắt buộc có `provider` và `model`. Các khóa ghi đè còn 
 | `max_workers` | `max_workers`. Áp dụng cho mọi bước song song của Khâu Dịch (chia câu theo nghĩa, dịch, chia phụ đề) qua `llm_max_workers()`; bước sinh audio không đổi |
 
 - **Thứ tự tìm key:** biến môi trường ghi trong `api_key_env` → `llm_profiles.<tên>.api_key`. Không tìm thấy thì lỗi nêu tên profile và cả hai chỗ đặt key. Profile custom vẫn dùng `api.key` (máy chủ local như Ollama không cần key).
-- **Đổi profile:** sửa `api.profile` thành tên khác trong `llm_profiles`, hoặc `''` để quay về Profile custom. Tên không có trong `llm_profiles` thì lỗi liệt kê các profile đang có.
+- **Đổi profile trên giao diện:** sidebar → **LLM Configuration** → ô **Profile đang dùng**. Danh sách gồm *Profile custom (mục api: gốc)* và các profile trong `llm_profiles`; dưới ô hiện Provider và model của profile đang chọn. Lựa chọn được ghi ngay vào `api.profile` và lượt dịch tiếp theo dùng profile đó. Các ô nhập API gốc (key, base_url, model, JSON mode) chỉ hiện khi chọn Profile custom; profile có tên có nút **Check API** riêng. Không có `llm_profiles` thì sidebar giữ nguyên như upstream. Thêm, sửa, xóa profile vẫn làm trong `config.yaml`.
+- **Đổi profile bằng tay:** sửa `api.profile` thành tên khác trong `llm_profiles`, hoặc `''` để quay về Profile custom. Tên không có trong `llm_profiles` thì lỗi liệt kê các profile đang có.
 - **Cache không phân biệt model:** câu trả lời LLM được cache theo prompt trong `output/gpt_log`. Đổi profile rồi dịch lại cùng video sẽ dùng lại kết quả cũ; xóa `output/gpt_log` nếu muốn dịch lại bằng profile mới.
 - Thêm Provider mới (ví dụ `vertex` ở F8): thêm một mục vào `PROVIDERS` trong `core/utils/llm_profile.py`.
 
