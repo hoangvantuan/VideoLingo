@@ -33,6 +33,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/st_utils/llm_profile_editor.py` | #11 (F7/F8) — thêm/sửa/xóa profile trong `llm_profiles`, kiểm hợp lệ; ô `vertex.project`, `vertex.location_llm` |
 | `tests/test_llm_profile_editor.py` | Test cho trình sửa profile (Streamlit `AppTest`, config tạm) |
 | `tests/test_sidebar_custom_settings.py` | Test nghiệm thu #11: đặt mọi khóa F7–F10 từ cả sidebar trên `config.yaml` cũ |
+| `core/st_utils/advanced_settings.py` | #12 — expander **Nâng cao** cuối sidebar: mọi khóa còn lại người vận hành chỉnh được (chung, ASR, phụ đề, dịch, lồng tiếng, âm thanh) |
+| `tests/test_sidebar_all_settings.py` | Test nghiệm thu #12: mỗi nhóm của **Nâng cao** ghi khóa vào `config.yaml` cũ chưa có khóa đó (Streamlit `AppTest`) |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -68,6 +70,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/st_utils/tts_settings.py` (F9) | provider `"Vertex AI"` trong `PROVIDERS` (không có trong `KEY_PATHS`: xác thực bằng credential Google) | 1 |
 | `core/st_utils/sidebar_setting.py` (F9) | nhãn `vertex_tts` + nhánh gọi `vertex_tts_settings.render()` | 4 |
 | `core/st_utils/sidebar_setting.py` (#11) | import + gọi `llm_profile_editor.render()` cuối LLM Configuration, sau ô chọn profile | 2 |
+| `core/st_utils/sidebar_setting.py` (#12) | import + gọi `advanced_settings.render()` cuối `page_setting()`, sau Dubbing Settings | 2 |
 | `requirements.txt` (F8/F9) | `google-auth` | 2 |
 | `requirements.txt` (F1/F6) | `soniox` (SDK chính thức, `>=2.10,<3`) | 2 |
 | `config.example.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
@@ -243,6 +246,32 @@ Mọi khóa mới của F7–F10 đặt được trên sidebar, kể cả khi `c
 - Ví dụ dùng Vertex với `config.yaml` cũ: mở **Quản lý LLM profile & Vertex AI**, thêm profile `gemini-lite` (Provider `vertex`, model `google/gemini-3.5-flash-lite`), điền **Vertex project**, chọn `gemini-lite` ở **Profile đang dùng**; ở Dubbing Settings chọn Vertex AI, giọng, số luồng và Âm lượng gốc.
 - Ô cấu hình mới của fork dùng `core/st_utils/config_fields.py`: `current(key)` (config.yaml → config.example.yaml → giá trị dự phòng) và `save(key, value)` (tạo khóa và mục cha còn thiếu).
 - Nhãn là chữ cố định, không qua `t()`.
+
+## Đối chiếu khóa ↔ giao diện (#12)
+
+Mọi khóa của `config.example.yaml` chỉnh được trên giao diện, trừ các khóa nội bộ ở cuối bảng. Khóa trong **Nâng cao** (expander cuối sidebar) ghi bằng `config_fields.save` (= `update_key(..., add_missing=True)`, tạo cả mục cha), nên chạy được với `config.yaml` cũ; khóa chưa có thì ô hiện giá trị của `config.example.yaml`. Giao diện chỉ ghi config, mã xử lý đọc lại như khi sửa tay. Nhãn là chữ cố định, không qua `t()`, kèm tên khóa trong ngoặc.
+
+| Khóa | Chỗ chỉnh |
+|---|---|
+| `display_language` | trang chính, ô **Display Language** |
+| `api.*`, `llm_profiles.*`, `vertex.*` | sidebar, **LLM Configuration** (xem "Cấu hình trên giao diện (F7–F10)") |
+| `target_language`, `translation_style`, `demucs`, `burn_subtitles`, `pause_before_translate`, `pause_after_translate` | sidebar, **Subtitles Settings** |
+| `whisper.language`, `.runtime`, `.backend`, `.elevenlabs_api_key`, `.soniox_api_key`, `.mai_*` | sidebar, **Subtitles Settings** (theo runtime) |
+| `subtitle.sub_video_subtitles`, `.dub_video_subtitles` | **Subtitles Settings**, hiện khi bật **Burn-in Subtitles** |
+| `subtitle.style.*.font_name`, `.font_size`, `.font_color` | **Subtitles Settings → Subtitle Style** |
+| `tts_method`, khóa API của các Provider TTS (`openai_tts.api_key`, `f5tts.302_api`, `sf_fish_tts.api_key`, `sf_cosyvoice2.api_key`, `fish_audio.api_key`, `soniox_tts.api_key`) | **Dubbing Settings → TTS Provider / Provider API Key** (ô password) |
+| `sf_fish_tts.mode`, `.voice`; `openai_tts.voice`; `fish_audio.mode`, `.voice_id`; `edge_tts.voice`; `gpt_sovits.*`; `soniox_tts.voice`, `.language`, `.speed`; `vertex_tts.*`; `original_volume` | **Dubbing Settings**, theo phương thức đang chọn |
+| `youtube.cookies_path` | trang chính, **Youtube Settings** cạnh ô tải video |
+| `max_workers`, `tts_max_workers`, `ffmpeg_gpu`, `ytb_resolution` | **Nâng cao → Chung / hiệu năng** (`ytb_resolution` là mặc định của ô Resolution ở trang chính) |
+| `whisper.qwen_model`, `whisper.qwen_engine` | **Nâng cao → ASR**, chỉ khi runtime `local` + backend `qwen` |
+| `whisper.model` | **Nâng cao → ASR**, chỉ khi runtime `local` + backend `whisperx` |
+| `subtitle.max_length`, `subtitle.target_multiplier`, `subtitle.style.*.outline_color`, `.outline_width`, `subtitle.style.translation.back_color`, `.margin_v` | **Nâng cao → Phụ đề** (màu sai dạng: cảnh báo, không lưu) |
+| `summary_length`, `max_split_length`, `reflect_translate` | **Nâng cao → Dịch** |
+| `openai_tts.base_url`, `.model` / `fish_audio.model`, `fish_audio.voices` / `soniox_tts.model` | **Nâng cao → Lồng tiếng**, khi đang chọn phương thức đó (`fish_audio.voices`: mỗi dòng `tên: ID`) |
+| `speed_factor.min`, `.accept`, `.max`, `min_subtitle_duration`, `min_trim_duration`, `tolerance` | **Nâng cao → Lồng tiếng – tốc độ và thời lượng** (giữ `min ≤ accept ≤ max`) |
+| `audio.raw_sample_rate`, `audio.raw_bitrate` | **Nâng cao → Âm thanh** |
+| **Không đưa lên giao diện:** `model_dir`, `allowed_video_formats`, `allowed_audio_formats`, `spacy_model_map`, `language_split_with_space`, `language_split_without_space`, `whisper.detected_language` | khóa nội bộ / danh sách kỹ thuật |
+| **Không đưa lên giao diện:** `sf_fish_tts.custom_name`, `sf_fish_tts.voice_id` | chương trình tự ghi khi tạo giọng nhân bản (config ghi "dont set manually") |
 
 ## Setup Google Cloud
 

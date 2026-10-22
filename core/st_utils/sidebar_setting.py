@@ -507,6 +507,8 @@ def page_setting():
 
         from core.st_utils import original_volume_setting  # custom: F10
         original_volume_setting.render()  # custom
+    from core.st_utils import advanced_settings  # custom: #12, every other key in the "Nâng cao" expander
+    advanced_settings.render()  # custom
 
 
 
