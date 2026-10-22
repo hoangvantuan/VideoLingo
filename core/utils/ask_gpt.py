@@ -10,7 +10,7 @@ from openai import AuthenticationError, PermissionDeniedError  # custom
 from core.utils.config_utils import load_key
 from rich import print as rprint
 from core.utils.decorator import except_handler
-from core.utils.llm_profile import active_profile  # custom
+from core.utils.llm_profile import LLMAuthError, active_profile  # custom
 
 # ------------
 # cache gpt response
@@ -135,7 +135,7 @@ def ask_gpt(prompt, resp_type=None, valid_def=None, log_title="default"):
     except (AuthenticationError, PermissionDeniedError) as error:  # custom
         if not profile.auth_error_hint:  # custom
             raise  # custom
-        raise RuntimeError(f"{error}; {profile.auth_error_hint}") from error  # custom
+        raise LLMAuthError(f"{error}; {profile.auth_error_hint}") from error  # custom
 
     # process and return full result
     resp_content = resp_raw.choices[0].message.content

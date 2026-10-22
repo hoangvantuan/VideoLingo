@@ -8,13 +8,18 @@ import os
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+from core.utils.config_errors import ConfigError
 from core.utils.config_utils import load_key, load_key_or
 
 CUSTOM_PROFILE = ""
 
 
-class LLMProfileError(ValueError):
+class LLMProfileError(ConfigError, ValueError):
     """The active profile cannot be used as configured."""
+
+
+class LLMAuthError(ConfigError, RuntimeError):
+    """The provider refused the credential (401/403); the message carries the profile's hint."""
 
 
 @dataclass(frozen=True)
@@ -29,6 +34,16 @@ class LLMProfile:
     reasoning_effort: Optional[str]  # None: the parameter is not sent
     max_workers: Optional[int]  # None: the general max_workers applies
     auth_error_hint: Optional[str] = None  # appended to 401/403 errors of the provider
+
+
+@dataclass(frozen=True)
+class ProviderSettings:
+    """What a provider resolves for a named profile."""
+    base_url: str
+    normalize_base_url: bool
+    credential: Callable[[], str]
+    llm_support_json: Optional[bool] = None  # None: the profile's override, else api.llm_support_json
+    auth_error_hint: Optional[str] = None
 
 
 def _custom_key():
@@ -66,7 +81,7 @@ def _api_key_provider(default_base_url=None):
         base_url = entry.get("base_url") or default_base_url
         if not base_url:
             raise LLMProfileError(f"LLM profile '{name}' needs base_url (llm_profiles.{name}.base_url)")
-        return dict(base_url=base_url, normalize_base_url=True, credential=_profile_key(name, entry))
+        return ProviderSettings(base_url=base_url, normalize_base_url=True, credential=_profile_key(name, entry))
     return resolve
 
 
@@ -75,18 +90,18 @@ def _vertex_provider(name, entry):
     from core.utils import google_credentials
     location = str(load_key_or("vertex.location_llm", "global") or "global").strip()
     host = "aiplatform.googleapis.com" if location == "global" else f"{location}-aiplatform.googleapis.com"
-    return dict(
+    return ProviderSettings(
         # built here, never normalized: normalize_base_url rewrites any URL containing "ark"
         base_url=f"https://{host}/v1/projects/{google_credentials.project()}/locations/{location}/endpoints/openapi",
         normalize_base_url=False,
         credential=google_credentials.access_token,
         llm_support_json=True,
-        auth_error_hint=f"the Google credential needs roles/aiplatform.user on the project; {google_credentials.SETUP_HINT}",
+        auth_error_hint=(f"the Google credential needs roles/aiplatform.user and "
+                         f"roles/serviceusage.serviceUsageConsumer on the project; {google_credentials.SETUP_HINT}"),
     )
 
 
-# provider -> resolve(name, entry) giving base_url, normalize_base_url, credential
-# and optionally a default llm_support_json for the provider
+# provider -> resolve(name, entry) giving the ProviderSettings of the profile
 PROVIDERS = {
     "openrouter": _api_key_provider("https://openrouter.ai/api/v1"),
     "vertex": _vertex_provider,
@@ -99,33 +114,55 @@ def _named_profile(name, entry):
         raise LLMProfileError(f"LLM profile '{name}' needs provider (llm_profiles.{name}.provider)")
     if not entry.get("model"):
         raise LLMProfileError(f"LLM profile '{name}' needs model (llm_profiles.{name}.model)")
-    resolved = PROVIDERS.get(provider, _api_key_provider())(name, entry)
-    json_default = resolved.pop("llm_support_json", None)  # a provider may set its own default
+    settings = PROVIDERS.get(provider, _api_key_provider())(name, entry)
+    json_default = settings.llm_support_json  # a provider may set its own default
     if json_default is None:
         json_default = load_key("api.llm_support_json")
     return LLMProfile(
         name=name,
         provider=provider,
         model=entry["model"],
+        base_url=settings.base_url,
+        normalize_base_url=settings.normalize_base_url,
+        credential=settings.credential,
         llm_support_json=bool(entry.get("llm_support_json", json_default)),
         reasoning_effort=entry.get("reasoning_effort") or None,
         max_workers=entry.get("max_workers"),
-        **resolved,
+        auth_error_hint=settings.auth_error_hint,
     )
 
 
-def active_profile():
-    """The profile named by api.profile, or the custom profile when it is empty or missing."""
+def describe(name):
+    """(provider, model) of a profile as written in config.yaml, without resolving it; None when not declared."""
+    if name == CUSTOM_PROFILE:
+        return "custom", load_key("api.model")
+    entry = (load_key_or("llm_profiles", None) or {}).get(name)
+    if entry is None:
+        return None
+    return entry.get("provider") or "?", entry.get("model") or "?"
+
+
+def _active_entry():
+    """(name, llm_profiles entry) named by api.profile; the entry is None for the custom profile."""
     name = load_key_or("api.profile", CUSTOM_PROFILE) or CUSTOM_PROFILE
     if name == CUSTOM_PROFILE:
-        return _custom_profile()
+        return name, None
     profiles = load_key_or("llm_profiles", None) or {}
     if name not in profiles:
         available = ", ".join(profiles) or "none"
         raise LLMProfileError(f"api.profile '{name}' is not in llm_profiles (available: {available})")
-    return _named_profile(name, profiles[name])
+    return name, profiles[name] or {}
+
+
+def active_profile():
+    """The profile named by api.profile, or the custom profile when it is empty or missing."""
+    name, entry = _active_entry()
+    return _custom_profile() if entry is None else _named_profile(name, entry)
 
 
 def llm_max_workers():
-    """Thread count for every parallel Translate-stage step: the active profile's, else the general max_workers."""
-    return active_profile().max_workers or load_key("max_workers")
+    """Thread count for every parallel Translate-stage step: the active profile's, else the general max_workers.
+
+    Read from the entry, not the resolved profile, so no credential is loaded for a thread count."""
+    _, entry = _active_entry()
+    return (entry or {}).get("max_workers") or load_key("max_workers")

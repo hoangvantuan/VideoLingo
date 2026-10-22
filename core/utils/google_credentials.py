@@ -6,6 +6,7 @@ service-account key), refreshes the token when it expires, and is safe across th
 
 import threading
 
+from core.utils.config_errors import ConfigError
 from core.utils.config_utils import load_key_or
 
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
@@ -16,7 +17,7 @@ _credential = None
 _credential_project = None
 
 
-class GoogleCredentialError(RuntimeError):
+class GoogleCredentialError(ConfigError, RuntimeError):
     """Google credential or project is missing or unusable."""
 
 

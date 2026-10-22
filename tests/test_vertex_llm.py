@@ -188,3 +188,39 @@ def test_missing_credential_points_to_google_cloud_setup(setup, monkeypatch):
     assert "GOOGLE_APPLICATION_CREDENTIALS" in str(error.value)
     assert "Setup Google Cloud" in str(error.value)
     assert FakeOpenAI.clients == []
+
+
+def test_auth_hint_names_both_roles_of_the_setup(setup, monkeypatch):
+    import httpx
+    import openai
+    setup()
+    response = httpx.Response(403, request=httpx.Request("POST", "https://aiplatform.googleapis.com"))
+    denied = openai.PermissionDeniedError("denied", response=response, body=None)
+    monkeypatch.setattr(FakeOpenAI, "_create", lambda self, **params: (_ for _ in ()).throw(denied))
+    with pytest.raises(Exception) as error:
+        ask_gpt_module.ask_gpt("hello", resp_type="json")
+    assert "roles/aiplatform.user" in str(error.value)
+    assert "roles/serviceusage.serviceUsageConsumer" in str(error.value)
+
+
+@pytest.mark.parametrize("failure", ["no_credential", "no_project", "denied"])
+def test_google_config_errors_are_not_retried(setup, monkeypatch, failure):
+    import google.auth.exceptions
+    import httpx
+    import openai
+    sleeps = []
+    monkeypatch.setattr("core.utils.decorator.time.sleep", sleeps.append)
+    setup(project="" if failure == "no_project" else "my-project")
+    if failure == "no_credential":
+        def no_credential():
+            raise google.auth.exceptions.DefaultCredentialsError("Could not automatically determine credentials")
+        monkeypatch.setattr(google_credentials, "_load_default", no_credential)
+    elif failure == "no_project":
+        monkeypatch.setattr(google_credentials, "_load_default", lambda: (FakeCredential(), None))
+    else:
+        response = httpx.Response(403, request=httpx.Request("POST", "https://aiplatform.googleapis.com"))
+        denied = openai.PermissionDeniedError("denied", response=response, body=None)
+        monkeypatch.setattr(FakeOpenAI, "_create", lambda self, **params: (_ for _ in ()).throw(denied))
+    with pytest.raises(RuntimeError):
+        ask_gpt_module.ask_gpt("hello", resp_type="json")
+    assert sleeps == []
