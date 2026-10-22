@@ -6,6 +6,7 @@ from core._4_1_summarize import search_things_to_note_in_prompt
 from core._8_1_audio_task import check_len_then_trim
 from core._6_gen_sub import align_timestamp
 from core.utils import *
+from core.utils.llm_profile import llm_max_workers  # custom
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from difflib import SequenceMatcher
@@ -62,7 +63,7 @@ def translate_all():
     # 🔄 Use concurrent execution for translation
     with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
         task = progress.add_task("[cyan]Translating chunks...", total=len(chunks))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=load_key("max_workers")) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=llm_max_workers()) as executor:  # custom
             futures = []
             for i, chunk in enumerate(chunks):
                 future = executor.submit(translate_chunk, chunk, chunks, theme_prompt, i)
