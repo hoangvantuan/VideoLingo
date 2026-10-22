@@ -9,6 +9,7 @@ PROVIDERS = {
     "Local service": ("gpt_sovits",),
     "Custom provider": ("custom_tts",),
     "Soniox": ("soniox_tts",),  # custom
+    "Vertex AI": ("vertex_tts",),  # custom: F9, Google credential instead of a key path
 }
 KEY_PATHS = {
     "OpenLux": ("openai_tts.api_key",),
