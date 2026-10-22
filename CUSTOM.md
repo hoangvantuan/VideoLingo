@@ -21,7 +21,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/utils/google_credentials.py` | F8/F9 — credential Google dùng chung: `access_token()`, `auth_headers()`, `project()`, `GoogleCredentialError` |
 | `tests/test_google_credentials.py` | Test credential Google dùng chung |
 | `core/tts_backend/vertex_tts.py` | F9 — phương thức lồng tiếng `vertex_tts` (Cloud Text-to-Speech REST, Chirp 3 HD) |
-| `tests/test_vertex_tts.py` | Test cho F9 (backend + nhánh dispatcher) |
+| `core/st_utils/vertex_tts_settings.py` | F9 — giao diện chọn giọng Cloud TTS (lọc theo `vertex_tts.language`, Chirp 3 HD trước), ngôn ngữ, tốc độ |
+| `tests/test_vertex_tts.py` | Test cho F9 (backend, liệt kê/lọc giọng, giọng mặc định, nhánh dispatcher) |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -46,6 +47,8 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `tests/test_api.py` | F10: test `test_run_saves_original_volume` | 1 hàm |
 | `core/tts_backend/tts_main.py` (F9) | import + nhánh `elif TTS_METHOD == 'vertex_tts'` | 3 |
 | `core/_10_gen_audio.py` (F9) | khi `tts_method == 'vertex_tts'`, `vertex_tts.max_workers` thay toàn bộ số luồng TTS | 2 |
+| `core/st_utils/tts_settings.py` (F9) | provider `"Vertex AI"` trong `PROVIDERS` (không có trong `KEY_PATHS`: xác thực bằng credential Google) | 1 |
+| `core/st_utils/sidebar_setting.py` (F9) | nhãn `vertex_tts` + nhánh gọi `vertex_tts_settings.render()` | 4 |
 | `requirements.txt` (F8/F9) | `google-auth` | 2 |
 | `config.example.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và `vertex_tts` trong ghi chú `tts_method` | 3 + 12 + 3 + 20 |
 
@@ -142,7 +145,7 @@ original_volume: 0.25   # 0–1, nhân thẳng lên track âm thanh gốc; 0 = c
 
 ## Cấu hình F9 (Vertex TTS)
 
-Chưa có màn hình chọn giọng (ticket #6): sửa tay `config.yaml`.
+Chọn trên giao diện: **Dubbing Settings → TTS Provider = Vertex AI**, rồi chọn giọng và tốc độ. Hoặc sửa tay `config.yaml`:
 
 ```yaml
 tts_method: 'vertex_tts'
@@ -156,6 +159,10 @@ vertex_tts:
   max_workers: 4     # thay toàn bộ max_workers / tts_max_workers khi đang dùng vertex_tts
 ```
 
+- Danh sách giọng lấy từ `GET https://texttospeech.googleapis.com/v1/voices?languageCode=<vertex_tts.language>`, chỉ giữ giọng có đúng mã ngôn ngữ đó; Chirp 3 HD đứng trước (ô "Chirp 3 HD voices only" bật mặc định). `voice` trống thì giao diện chọn sẵn `vi-VN-Chirp3-HD-Aoede`, không có thì giọng Chirp 3 HD đầu tiên. Danh sách được cache 1 giờ trên giao diện (theo ngôn ngữ); lỗi không bị cache.
+- Thiếu credential: màn hình hiện hướng dẫn đặt `GOOGLE_APPLICATION_CREDENTIALS` và cho gõ tay tên giọng, không lỗi trang. Lỗi khác (quyền, mạng) hiện cảnh báo.
+- Thanh trượt tốc độ trên giao diện: 0.7–1.3 (khoảng an toàn để khớp thời lượng phụ đề). Giá trị sửa tay ngoài khoảng này được giữ nguyên cho tới khi kéo thanh trượt.
+- Nhãn trên giao diện là chữ cố định, không qua `t()`.
 - Gọi REST `POST https://texttospeech.googleapis.com/v1/text:synthesize` (không dùng `google-cloud-texttospeech`), `audioEncoding: LINEAR16`: Cloud TTS trả WAV có header nên ghi thẳng ra `.wav`.
 - Header `x-goog-user-project` = `vertex.project` (hoặc project của credential), nên service account cần role `serviceusage.serviceUsageConsumer`.
 - Lỗi API (quota 429, giọng sai 400, credential 401/403) báo `HTTP <mã> <thông điệp>` và không tự thử lại trong backend: vòng thử lại 3 lần của `tts_main` xử lý. Lỗi 401/403 và thiếu credential/project chỉ tới mục "Setup Google Cloud".
