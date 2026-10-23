@@ -257,5 +257,8 @@
     "Download video": "Скачать видео",
     "Save to 'history'": "Сохранить в 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "В `output/` лежат файлы другого видео. Архивируйте их в 'history' или удалите в режиме одного видео, затем запустите плейлист.",
-    "A playlist run is already active.": "Обработка плейлиста уже идёт."
+    "A playlist run is already active.": "Обработка плейлиста уже идёт.",
+    "Failed step": "Шаг с ошибкой",
+    "Error": "Ошибка",
+    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "2 видео подряд завершились ошибкой, поэтому запуск плейлиста приостановлен. Обычно это системная ошибка (квота, API-ключ, сеть или cookies): исправьте её и продолжите."
 }
