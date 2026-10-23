@@ -28,15 +28,33 @@ def _duration(seconds):
     return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
 
 
+_REFUSAL = "_playlist_refusal"  # session key: message of the last refused control, until the next action
+
+
 def _control(action):
-    """Call a control of the run; a refusal shows its message, otherwise the page refreshes."""
+    """Call a control of the run; a refusal keeps its message, otherwise the page refreshes.
+
+    The message lives in the session: the panel refreshes every second and would drop an ``st.error``.
+    """
+    st.session_state.pop(_REFUSAL, None)
     try:
         action()
     except playlist_run.PlaylistRunError as e:
-        message = str(e)
+        st.session_state[_REFUSAL] = str(e)
+    st.rerun()
+
+
+def _act(action):
+    """A control that is never refused (Pause, Stop): it clears the message of a refusal."""
+    st.session_state.pop(_REFUSAL, None)
+    action()
+    st.rerun()
+
+
+def _show_refusal():
+    message = st.session_state.get(_REFUSAL)
+    if message:
         st.error(t(message))
-    else:
-        st.rerun()
 
 
 def _rows(snapshot):
@@ -66,6 +84,7 @@ def _run_panel():
         step = t(snapshot.current_step) if snapshot.current_step else ""
         icon = "⏸️" if snapshot.state == "paused" else "⏳"
         st.info(f"{icon} {video.index}. {video.title} — {step}")
+    _show_refusal()
     if snapshot.state == "paused":
         if snapshot.pause_message:
             st.error(f"⏸️ {t(snapshot.pause_message)}")
@@ -75,16 +94,13 @@ def _run_panel():
         if col1.button(f"▶️ {t('Resume')}", key="playlist_resume", width="stretch"):
             _control(run.resume)
         if col2.button(f"⏹️ {t('Stop')}", key="playlist_stop_paused", width="stretch"):
-            run.stop()
-            st.rerun()
+            _act(run.stop)
     elif snapshot.state == "running":
         col1, col2 = st.columns(2)
         if col1.button(f"⏸️ {t('Pause')}", key="playlist_pause", width="stretch"):
-            run.pause()
-            st.rerun()
+            _act(run.pause)
         if col2.button(f"⏹️ {t('Stop')}", key="playlist_stop", width="stretch"):
-            run.stop()
-            st.rerun()
+            _act(run.stop)
     elif snapshot.state == "stopping":
         st.info(t("Stopping..."))
     elif snapshot.unfinished:
@@ -137,6 +153,8 @@ def _start_form(playlist):
         key="playlist_scope")
     if st.button(t("Start playlist"), key="playlist_start", disabled=not selected, width="stretch"):
         _control(lambda: playlist_run.PlaylistRun.create(playlist, selected, scope).start())
+    if playlist_run.current_run() is None:  # otherwise the panel above shows it
+        _show_refusal()
 
 
 def render():
@@ -154,6 +172,7 @@ def render():
     with st.container(border=True):
         url = st.text_input(t("Playlist or channel URL"), key="playlist_url")
         if st.button(t("Read playlist"), key="playlist_read", width="stretch") and url:
+            st.session_state.pop(_REFUSAL, None)
             try:
                 with st.spinner(t("Reading playlist...")):
                     st.session_state["_playlist"] = playlist_run.read_playlist(url)
@@ -162,4 +181,5 @@ def render():
                 st.error(f"{t('Read failed')}: {e}")
         playlist = st.session_state.get("_playlist")
         if playlist is not None:
-            _start_form(playlist)
+            # a run since the reading may have done some of its videos: they are `Xong` and not selected
+            _start_form(playlist_run.mark_done(playlist))
