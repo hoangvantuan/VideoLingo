@@ -26,6 +26,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/tts_backend/vertex_tts.py` | F9 — phương thức lồng tiếng `vertex_tts` (Cloud Text-to-Speech REST, Chirp 3 HD) |
 | `core/st_utils/vertex_tts_settings.py` | F9 — giao diện chọn giọng Cloud TTS (lọc theo `vertex_tts.language`, Chirp 3 HD trước), ngôn ngữ, tốc độ |
 | `tests/test_vertex_tts_settings.py` | Test cho màn hình giọng F9 (Streamlit `AppTest`, danh sách giọng giả) |
+| `tests/test_consecutive_edits.py` | Test F9/F10: hai lần sửa liên tiếp ô Vertex TTS và thanh "Âm lượng gốc" đều được lưu (widget có `key=` cố định, id không đổi khi lưu) |
 | `tests/test_vertex_tts.py` | Test cho F9 (backend, liệt kê/lọc giọng, giọng mặc định, nhánh dispatcher) |
 | `tests/test_vertex_llm.py` | Test cho F8 (profile Vertex qua seam `ask_gpt`, client OpenAI và credential Google giả) |
 | `core/st_utils/config_fields.py` | #11 — đọc khóa mới với mặc định lấy từ `config.example.yaml`, ghi khóa (kể cả mục cha) vào `config.yaml` cũ; dùng chung cho các ô cấu hình của fork |
