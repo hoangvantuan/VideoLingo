@@ -28,6 +28,28 @@ def _duration(seconds):
     return f"{hours}:{minutes:02d}:{seconds:02d}" if hours else f"{minutes}:{seconds:02d}"
 
 
+def _control(action):
+    """Call a control of the run; a refusal shows its message, otherwise the page refreshes."""
+    try:
+        action()
+    except playlist_run.PlaylistRunError as e:
+        message = str(e)
+        st.error(t(message))
+    else:
+        st.rerun()
+
+
+def _rows(snapshot):
+    """A row per video of the run, and per video not in it that is `Không khả dụng` or `Xong`."""
+    labels = _status_labels()
+    return [{"#": v.index, t("Title"): v.title, t("Duration"): _duration(v.duration),
+             t("Status"): labels[v.status], t("History folder"): v.folder if v.status == playlist_run.DONE else "",
+             t("Failed step"): t(v.failed_step) if v.status == playlist_run.FAILED and v.failed_step else "",
+             t("Error"): v.error if v.status == playlist_run.FAILED else ""}
+            for v in snapshot.videos
+            if v.selected or v.status in (playlist_run.UNAVAILABLE, playlist_run.DONE)]
+
+
 @st.fragment(run_every=1)
 def _run_panel():
     """Progress and controls of the run. Refreshes every second while the run is active."""
@@ -35,8 +57,7 @@ def _run_panel():
     if run is None:
         return
     snapshot = run.snapshot()
-    active = snapshot.state in ("running", "paused", "stopping")
-    busy = active or snapshot.unfinished
+    busy = snapshot.active or snapshot.unfinished
     st.subheader(snapshot.title)
     st.progress(snapshot.done / snapshot.total if snapshot.total else 0.0,
                 text=f"{snapshot.done}/{snapshot.total}")
@@ -52,13 +73,7 @@ def _run_panel():
             st.warning(f"⏸️ {t('Paused')}")
         col1, col2 = st.columns(2)
         if col1.button(f"▶️ {t('Resume')}", key="playlist_resume", width="stretch"):
-            try:
-                run.resume()
-            except playlist_run.PlaylistRunError as e:
-                message = str(e)
-                st.error(t(message))
-                return
-            st.rerun()
+            _control(run.resume)
         if col2.button(f"⏹️ {t('Stop')}", key="playlist_stop_paused", width="stretch"):
             run.stop()
             st.rerun()
@@ -79,44 +94,19 @@ def _run_panel():
             st.warning(f"⏹️ {t('Playlist run stopped. The unfinished video is kept in its history folder.')}")
         col1, col2 = st.columns(2)
         if col1.button(f"▶️ {t('Continue')}", key="playlist_continue", width="stretch"):
-            try:
-                run.start()
-            except playlist_run.PlaylistRunError as e:
-                message = str(e)
-                st.error(t(message))
-            else:
-                st.rerun()
+            _control(run.start)
         if col2.button(f"🏁 {t('End run')}", key="playlist_end", width="stretch"):
-            try:
-                run.end()
-            except playlist_run.PlaylistRunError as e:
-                message = str(e)
-                st.error(t(message))
-            else:
-                st.rerun()
+            _control(run.end)
     elif snapshot.state == "completed":
         st.success(t("Playlist run completed!"))
     elif snapshot.state == "error":
         st.error(f"❌ {t('Task error')}: {snapshot.error}")
-    if not active and any(v.selected and v.status == playlist_run.FAILED for v in snapshot.videos):
-        # each `Lỗi` video goes on from the step that failed, with the work kept in its history folder
+    if not snapshot.active and any(v.selected and v.status == playlist_run.FAILED for v in snapshot.videos):
+        # only the `Lỗi` videos, each from the step that failed, with the work kept in its history folder
         if st.button(f"🔁 {t('Retry failed videos')}", key="playlist_retry", width="stretch"):
-            try:
-                run.retry_failed()
-            except playlist_run.PlaylistRunError as e:
-                message = str(e)
-                st.error(t(message))
-            else:
-                st.rerun()
+            _control(run.retry_failed)
 
-    labels = _status_labels()
-    st.dataframe(
-        [{"#": v.index, t("Title"): v.title, t("Duration"): _duration(v.duration),
-          t("Status"): labels[v.status], t("History folder"): v.folder if v.status == playlist_run.DONE else "",
-          t("Failed step"): t(v.failed_step) if v.status == playlist_run.FAILED and v.failed_step else "",
-          t("Error"): v.error if v.status == playlist_run.FAILED else ""}
-         for v in snapshot.videos if v.selected],
-        hide_index=True, width="stretch")
+    st.dataframe(_rows(snapshot), hide_index=True, width="stretch")
 
     # The form of a new run follows the end of this one
     if st.session_state.get("_playlist_run_active", busy) != busy:
@@ -146,13 +136,7 @@ def _start_form(playlist):
         format_func=lambda value: t("Subtitles only") if value == playlist_run.SUBTITLES else t("Subtitles and dubbing"),
         key="playlist_scope")
     if st.button(t("Start playlist"), key="playlist_start", disabled=not selected, width="stretch"):
-        try:
-            playlist_run.PlaylistRun.create(playlist, selected, scope).start()
-        except playlist_run.PlaylistRunError as e:
-            message = str(e)
-            st.error(t(message))
-            return
-        st.rerun()
+        _control(lambda: playlist_run.PlaylistRun.create(playlist, selected, scope).start())
 
 
 def render():
@@ -162,8 +146,10 @@ def render():
     if run is not None:
         with st.container(border=True):
             _run_panel()
-    if run is not None and (run.snapshot().state in ("running", "paused", "stopping") or run.snapshot().unfinished):
-        return
+    if run is not None:
+        snapshot = run.snapshot()
+        if snapshot.active or snapshot.unfinished:
+            return
 
     with st.container(border=True):
         url = st.text_input(t("Playlist or channel URL"), key="playlist_url")

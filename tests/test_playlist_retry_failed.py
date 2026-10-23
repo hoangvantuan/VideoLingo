@@ -163,12 +163,14 @@ def test_a_failed_video_selected_in_a_new_run_goes_on_from_its_history_folder(wo
 
 def test_an_error_outside_the_videos_leaves_the_run_unfinished_with_no_video_running(workspace, monkeypatch):
     from core.utils import output_lock
-    real_cleanup = playlist_run.cleanup
-    def cleanup(destination):
-        if "Second talk" in destination:
+    real_merge_output = playlist_run.merge_output
+    refused = []
+    def merge_output(destination, source="output", exclude=()):
+        if source == "output" and "Second talk" in str(destination) and not refused:
+            refused.append(destination)
             raise OSError("No space left on device")  # the failure of the video can not be recorded
-        real_cleanup(destination=destination)
-    monkeypatch.setattr(playlist_run, "cleanup", cleanup)
+        real_merge_output(destination, source=source, exclude=exclude)
+    monkeypatch.setattr(playlist_run, "merge_output", merge_output)
     pipeline = SkippingPipeline(fail={"Second talk"})
     run, ytdlp = start(["a1", "c3", "f6"], pipeline=pipeline)
 
@@ -183,7 +185,7 @@ def test_an_error_outside_the_videos_leaves_the_run_unfinished_with_no_video_run
     assert json.loads((ROOT / "playlist_run.json").read_text(encoding="utf-8"))["state"] == "interrupted"
 
     # Tiếp tục, once the cause is fixed: the video goes on from its history folder
-    monkeypatch.setattr(playlist_run, "cleanup", real_cleanup)
+    monkeypatch.setattr(playlist_run, "merge_output", real_merge_output)
     pipeline.fail.clear()
     run.start()
     snapshot = finish(run)
