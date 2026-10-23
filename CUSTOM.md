@@ -235,7 +235,7 @@ Mọi khóa mới của F7–F10 đặt được trên sidebar, kể cả khi `c
 | Khóa | Chỗ đặt trên sidebar |
 |---|---|
 | `api.profile` | **LLM Configuration → Profile đang dùng** (hiện khi có ít nhất một profile) |
-| `llm_profiles.<tên>.*` | **LLM Configuration → Quản lý LLM profile & Vertex AI** → ô **Sửa profile**: *➕ Profile mới* hoặc tên profile, rồi **💾 Lưu profile** / **🗑 Xóa profile** |
+| `llm_profiles.<tên>.*` | **LLM Configuration → Quản lý LLM profile & Vertex AI** → ô **Sửa profile**: *➕ Profile mới* hoặc tên profile, rồi **💾 Lưu profile** / **🗑 Xóa profile** (rồi **Xác nhận xóa**; **Hủy** để giữ) |
 | `vertex.project`, `vertex.location_llm` | cùng chỗ, phần **Vertex AI (dùng chung cho Khâu Dịch và Lồng tiếng)**; ghi ngay khi rời ô |
 | `vertex_tts.voice`, `.language`, `.speed`, `.max_workers` | **Dubbing Settings → TTS Provider = Vertex AI** (ô **Vertex parallel requests (max_workers)**, tối thiểu 1) |
 | `original_volume` | **Dubbing Settings → Âm lượng gốc (Thuyết minh)** |

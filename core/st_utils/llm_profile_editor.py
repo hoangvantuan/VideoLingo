@@ -25,6 +25,7 @@ TEXT_FIELDS = {  # entry key -> label; empty values are left out of the entry
 TARGET_KEY = "llm_profile_editor_target"
 PENDING_KEY = "llm_profile_editor_pending"  # target to select on the next run, set before the selectbox exists
 NOTICE_KEY = "llm_profile_editor_notice"
+DELETE_KEY = "llm_profile_editor_delete"  # profile whose deletion waits for "Xác nhận xóa"
 
 
 def problems(name, entry, profiles, original):
@@ -134,10 +135,23 @@ def _profile_form(profiles):
             st.session_state[PENDING_KEY] = name
             st.session_state[NOTICE_KEY] = f"Đã lưu profile '{name}'."
             st.rerun()
-    if target != NEW and st.button("🗑 Xóa profile", key=key + "delete", use_container_width=True):
+    if target == NEW:
+        return
+    if st.button("🗑 Xóa profile", key=key + "delete", use_container_width=True):
+        st.session_state[DELETE_KEY] = target
+    if st.session_state.get(DELETE_KEY) != target:  # a confirmation asked for another profile is dropped
+        st.session_state.pop(DELETE_KEY, None)
+        return
+    st.warning(f"Xóa profile '{target}' khỏi llm_profiles?")
+    confirm, cancel = st.columns(2)
+    if confirm.button("Xác nhận xóa", key=key + "delete_confirm", type="primary", use_container_width=True):
+        st.session_state.pop(DELETE_KEY)
         _delete(profiles, target)
         st.session_state[PENDING_KEY] = NEW
         st.session_state[NOTICE_KEY] = f"Đã xóa profile '{target}'."
+        st.rerun()
+    if cancel.button("Hủy", key=key + "delete_cancel", use_container_width=True):
+        st.session_state.pop(DELETE_KEY)
         st.rerun()
 
 
