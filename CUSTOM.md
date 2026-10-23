@@ -51,6 +51,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_history_destination.py` | Test #14: lưu vào thư mục history chọn sẵn giữ nội dung cũ |
 | `core/playlist_run.py` | #14 — Lượt chạy playlist (ADR-0002): đọc Playlist bằng yt-dlp chế độ flat (`read_playlist`), `PlaylistRun` (`create`, `start`, `pause`, `resume`, `wait`, `snapshot`), lượt chạy chung của tiến trình (`current_run()`), file trạng thái `history/<playlist>/playlist_run.json`. Adapter `ytdlp` và `plan` thay được khi test |
 | `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
+| `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -101,6 +102,9 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `config.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
 | `core/utils/onekeycleanup.py` (#14) | import `merge_output`; `cleanup(destination=...)` chuyển `output/` vào thư mục chọn sẵn, giữ nội dung đã có (không có `destination` thì như cũ) | 4 |
 | `core/pipeline.py` (#14) | `review_terminology`, `review_translation` không tạm dừng khi runner có `unattended` (Lượt chạy playlist), dù `pause_before_translate`/`pause_after_translate` đang bật | 4 |
+| `st.py` (#14) | import `playlist_tab`; `main()` chia hai tab "Single video" (luồng a→b→c cũ, thụt lề vào `with`) và "Playlist" (`playlist_tab.render()`) | 1 + 9 |
+| `tests/test_ui_translations.py` (#14) | `DYNAMIC_T_ARGS` thêm `core/st_utils/playlist_tab.py` (`snapshot.current_step`, `message`; key được kiểm trong `tests/test_playlist_run.py`) | 1 |
+| `translations/*.json` (#14) | 26 key của tab Playlist và Lượt chạy playlist, đủ 7 ngôn ngữ | 26 × 7 |
 
 ## Cấu hình F1 (Soniox)
 

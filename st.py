@@ -20,6 +20,7 @@ from core.pipeline import get_steps, truncated_dubbing_lines
 from core.utils import load_key, update_key
 from core.utils.onekeycleanup import cleanup
 from core.utils.delete_retry_dubbing import delete_dubbing_files
+from core.st_utils import playlist_tab  # custom: playlist
 from translations.translations import DISPLAY_LANGUAGES, init_display_language, set_display_language
 from core.utils.models import _TEXT_DONE_MARKER, _AUDIO_DONE_MARKER
 
@@ -357,11 +358,15 @@ def main():
     with st.sidebar:
         page_setting()
         st.markdown(give_star_button(), unsafe_allow_html=True)
-    if download_video_section():
-        text_done = text_processing_section()
-        from core._1_ytdlp import is_audio_only_input
-        if text_done and not is_audio_only_input():
-            audio_processing_section()
+    single_tab, playlist_tab_ = st.tabs([t("Single video"), t("Playlist")])  # custom: playlist
+    with single_tab:  # custom
+        if download_video_section():  # custom: indented
+            text_done = text_processing_section()  # custom
+            from core._1_ytdlp import is_audio_only_input  # custom
+            if text_done and not is_audio_only_input():  # custom
+                audio_processing_section()  # custom
+    with playlist_tab_:  # custom
+        playlist_tab.render()  # custom
 
 
 if __name__ == "__main__":

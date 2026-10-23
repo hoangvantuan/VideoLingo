@@ -306,3 +306,14 @@ def test_ytdlp_reads_flat_with_the_proxy_and_cookies_and_downloads_with_the_exis
     assert options["extract_flat"] == "in_playlist"
     assert (options["proxy"], options["cookiefile"]) == ("socks5://proxy.example.com:1080", "cookies.txt")
     assert downloads == [(watch("a1"), {"resolution": "360"})]
+
+
+def test_steps_and_messages_of_a_run_exist_in_every_locale():
+    from core.pipeline import get_steps
+    from translations.translations import DISPLAY_LANGUAGES
+    keys = {playlist_run.DOWNLOAD_STEP, playlist_run.SAVE_STEP, playlist_run.OUTPUT_NOT_EMPTY, playlist_run.RUN_ACTIVE}
+    keys |= {label for scope in (False, True) for label, _step in get_steps("all", scope)}
+    root = Path(__file__).resolve().parents[1] / "translations"
+    missing = {language: sorted(keys - json.loads((root / f"{language}.json").read_text(encoding="utf-8")).keys())
+               for language in DISPLAY_LANGUAGES.values()}
+    assert missing == {language: [] for language in DISPLAY_LANGUAGES.values()}
