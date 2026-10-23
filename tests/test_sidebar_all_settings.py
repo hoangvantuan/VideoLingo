@@ -60,8 +60,8 @@ def test_general_keys(config):
     at = run()
     at = widget(at, "number_input", "Số luồng LLM (max_workers)").set_value(2).run(timeout=30)
     at = widget(at, "number_input", "Số request TTS song song (tts_max_workers)").set_value(1).run(timeout=30)
-    at = widget(at, "toggle", "Tăng tốc GPU cho FFmpeg (h264_nvenc)").set_value(True).run(timeout=30)
-    at = widget(at, "selectbox", "Độ phân giải tải YouTube").select("best").run(timeout=30)
+    at = widget(at, "toggle", "Tăng tốc GPU cho FFmpeg, h264_nvenc (ffmpeg_gpu)").set_value(True).run(timeout=30)
+    at = widget(at, "selectbox", "Độ phân giải tải YouTube (ytb_resolution)").select("best").run(timeout=30)
     assert not at.exception
     assert load_key("max_workers") == 2
     assert load_key("tts_max_workers") == 1
@@ -98,11 +98,11 @@ def test_subtitle_keys(config):
     at = run()
     at = widget(at, "number_input", "Độ dài tối đa một dòng (subtitle.max_length)").set_value(60).run(timeout=30)
     at = widget(at, "number_input", "Hệ số độ dài bản dịch (subtitle.target_multiplier)").set_value(1.5).run(timeout=30)
-    at = widget(at, "number_input", "Độ dày viền – phụ đề dịch").set_value(2).run(timeout=30)
-    at = widget(at, "text_input", "Màu nền – phụ đề dịch").input("#112233").run(timeout=30)
-    at = widget(at, "text_input", "Màu viền – phụ đề gốc").input("not a color").run(timeout=30)
+    at = widget(at, "number_input", "Độ dày viền – phụ đề dịch (subtitle.style.translation.outline_width)").set_value(2).run(timeout=30)
+    at = widget(at, "text_input", "Màu nền – phụ đề dịch (subtitle.style.translation.back_color)").input("#112233").run(timeout=30)
+    at = widget(at, "text_input", "Màu viền – phụ đề gốc (subtitle.style.source.outline_color)").input("not a color").run(timeout=30)
     assert [box for box in at.warning if "not a color" in box.value]  # an unusable color is not saved
-    at = widget(at, "number_input", "Lề dưới – phụ đề dịch").set_value(40).run(timeout=30)
+    at = widget(at, "number_input", "Lề dưới – phụ đề dịch (subtitle.style.translation.margin_v)").set_value(40).run(timeout=30)
     assert not at.exception
     assert load_key("subtitle.max_length") == 60
     assert load_key("subtitle.target_multiplier") == 1.5
@@ -181,3 +181,31 @@ def test_soniox_tts_model(config, monkeypatch):
     at = widget(at, "text_input", "Model Soniox TTS (soniox_tts.model)").input("tts-rt-v3").run(timeout=30)
     assert not at.exception
     assert load_key("soniox_tts.model") == "tts-rt-v3"
+
+
+def _advanced():
+    from core.st_utils import advanced_settings
+
+    advanced_settings.render()
+
+
+@pytest.mark.parametrize("method", ["openai_tts", "fish_audio", "soniox_tts"])
+def test_every_advanced_label_names_its_key(config, method):
+    """CUSTOM.md: each label of "Nâng cao" ends with the config.example.yaml key that it sets, in brackets."""
+    import re
+
+    config(tts_method=method)
+    at = AppTest.from_function(_advanced).run(timeout=30)
+    assert not at.exception
+    with open(EXAMPLE, encoding="utf-8") as file:
+        example = config_utils.yaml.load(file)
+    labels = [item.label for kind in ("number_input", "selectbox", "toggle", "text_input", "text_area")
+              for item in getattr(at, kind)]
+    assert labels
+    for label in labels:
+        found = re.search(r"\(([\w.]+)\)$", label)
+        assert found, f"no key in the label {label!r}"
+        node = example
+        for part in found.group(1).split("."):
+            assert isinstance(node, dict) and part in node, f"{found.group(1)!r} of {label!r} is not a config key"
+            node = node[part]
