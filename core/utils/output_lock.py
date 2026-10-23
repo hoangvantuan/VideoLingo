@@ -3,7 +3,9 @@
 The run writes ``output/.playlist_run.lock`` with the ID of its process. The single video mode
 of Streamlit and the local API (another process) read it with ``is_locked()`` and leave
 ``output/`` alone. A lock left behind by a crash is stale and removed by ``is_locked()``: in the
-process that wrote it no run is alive any more, or that process has ended.
+process that wrote it no run is alive any more, or that process has ended. In the process that
+wrote it, the answer is read under the lock of ``core.playlist_run``, which a run holds while it
+starts: a run whose lock is written but whose thread has not started yet is not taken for stale.
 
 No heavy imports: ``api.py`` reads the lock.
 """
@@ -42,9 +44,8 @@ def is_locked() -> bool:
 
 
 def _run_alive():
-    from core.playlist_run import current_run
-    run = current_run()
-    return run is not None and run._runner.is_active
+    from core.playlist_run import run_alive  # read under the lock of the runs: a run being started counts
+    return run_alive()
 
 
 def _process_alive(pid):

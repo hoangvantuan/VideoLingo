@@ -47,8 +47,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/fixtures/config.yaml`, `tests/template_config.py` | #22 — bản mẫu `config.yaml` mà test đọc/chép (`TEMPLATE_CONFIG`), để test không phụ thuộc `config.yaml` của người vận hành. Sửa `config.yaml` mẫu thì làm mới: `git show HEAD:config.yaml > tests/fixtures/config.yaml` |
 | `scripts/upgrade_config.py` | #22 — script người dùng tự chạy: đặt giá trị của `config.yaml` đang dùng lên bản mẫu của repo (`--dry-run`, `--template`, sao lưu `config.before-upgrade.yaml` quyền 600) |
 | `tests/test_upgrade_config.py` | Test #22: script nâng cấp config (file tạm) |
-| `core/utils/history_folder.py` | #14 — `merge_output(destination)`: chuyển toàn bộ `output/` (kể cả `log/`, `gpt_log/`) vào thư mục history chọn sẵn, không xoá nội dung đã có ở đích. #18: khoá của Lượt chạy playlist ở lại `output/` |
-| `tests/test_history_destination.py` | Test #14: lưu vào thư mục history chọn sẵn giữ nội dung cũ |
+| `core/utils/history_folder.py` | #14 — `merge_output(destination, exclude=())`: chuyển toàn bộ `output/` (kể cả `log/`, `gpt_log/`) vào thư mục history chọn sẵn, không xoá nội dung đã có ở đích. File ở gốc `output/` có tên trong `exclude` ở lại (Lượt chạy playlist truyền tên khoá của nó, #18) |
+| `tests/test_history_destination.py` | Test #14: `merge_output` vào thư mục history chọn sẵn giữ nội dung cũ, file trong `exclude` ở lại `output/` |
 | `core/playlist_run.py` | #14 — Lượt chạy playlist (ADR-0002): đọc Playlist bằng yt-dlp chế độ flat (`read_playlist`), `PlaylistRun` (`create`, `start`, `pause`, `resume`, `wait`, `snapshot`), lượt chạy chung của tiến trình (`current_run()`), file trạng thái `history/<playlist>/playlist_run.json`. Adapter `ytdlp` và `plan` thay được khi test |
 | `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
@@ -61,6 +61,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_playlist_failures.py` | Test #15: pipeline giả ném lỗi ở bước chỉ định: một video lỗi rồi chạy tiếp, lỗi khi tải, 2 lỗi liên tiếp tự pause (#19: Resume chạy lại video vừa lỗi trước), video thành công xen giữa đặt lại bộ đếm |
 | `core/playlist_run.py`, `core/st_utils/playlist_tab.py` (#19) | Chạy lại các video lỗi (`run.retry_failed()`, nút trên tab): mỗi video `Lỗi` chuyển phần dở từ history về `output/` và tiếp từ bước hỏng, không tải lại; Resume sau tự pause chạy lại video vừa lỗi trước; video `Lỗi` được tick lại trong lượt chạy mới cũng tiếp từ phần dở (`partial` từ file trạng thái); lỗi không thuộc một video (file trạng thái, chuyển file) cất video đang chạy vào history, lượt chạy thành `interrupted` để Tiếp tục |
 | `tests/test_playlist_retry_failed.py` | Test #19: pipeline giả bỏ qua bước đã có file trung gian: Resume sau tự pause chạy lại video vừa lỗi trước, chạy lại video lỗi không lặp bước đã xong và dùng cache LLM, lỗi ngoài video không để video `Đang chạy` |
+| `core/playlist_run.py`, `core/utils/output_lock.py`, `core/st_utils/playlist_tab.py` (review #13) | Luồng playlist kiểm tra runner của chính nó (`TaskRunner.check()`) và đặt lại `TaskRunner._current` trước mỗi video và bước (lượt chạy 1 video lúc tự pause xoá nó); `is_locked()` đọc lượt chạy sống (`run_alive()`) dưới `_lock` (`RLock`) mà `start()` giữ trong lúc khởi động, nên không xoá nhầm khoá của lượt đang khởi động; `retry_failed()` chỉ chạy lại video `Lỗi` (video `Chờ` giữ nguyên, lượt dở vẫn dở để Tiếp tục), làm trọn dưới `_lock`, bị từ chối thì file trạng thái giữ như cũ; `end()` bỏ chọn các video còn `Chờ` nên lượt đã kết thúc không chạy thêm video nào; video `Lỗi` không được chọn ở lượt mới giữ thư mục và `partial`; `load_unfinished()` không lấy `output/` khi khoá thuộc một tiến trình khác còn sống; bảng tiến độ hiện cả video `Không khả dụng` và video `Xong` không được chọn; `PlaylistRun.is_active`, `RunSnapshot.active` |
+| `tests/test_playlist_review_fixes.py` | Test review #13: Pause/Stop vẫn có tác dụng sau lượt chạy 1 video lúc tự pause, `is_locked()` chờ lượt đang khởi động, `retry_failed()` bị từ chối muộn không đổi file trạng thái, chỉ chạy lại video `Lỗi`, lượt đã kết thúc không chạy thêm video `Chờ`, video `Lỗi` không được chọn vẫn tiếp từ phần dở ở lượt sau, `load_unfinished()` không đụng `output/` của tiến trình khác, các dòng của bảng tiến độ (`_rows`) |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -109,7 +111,6 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `.dockerignore` (#22) | `config.yaml` không còn bị loại khỏi image (cần cho container); loại `config.backup.yaml`, `config.before-upgrade.yaml` (có thể chứa key thật) | 3 |
 | `tests/test_backlog_fixes.py`, `tests/test_dependencies.py`, `tests/test_language_support.py`, `tests/test_audio_extract_quality.py`, `tests/test_pipeline_integration.py` (#22) | đọc/chép `TEMPLATE_CONFIG` (`tests/fixtures/config.yaml`) thay cho `config.yaml` của repo; test ghép phụ đề trỏ `CONFIG_PATH` vào bản mẫu | 3 + 3 + 2 + 2 + 2 |
 | `config.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
-| `core/utils/onekeycleanup.py` (#14) | import `merge_output`; `cleanup(destination=...)` chuyển `output/` vào thư mục chọn sẵn, giữ nội dung đã có (không có `destination` thì như cũ) | 4 |
 | `core/pipeline.py` (#14) | `review_terminology`, `review_translation` không tạm dừng khi runner có `unattended` (Lượt chạy playlist), dù `pause_before_translate`/`pause_after_translate` đang bật | 4 |
 | `st.py` (#14) | import `playlist_tab`; `main()` chia hai tab "Single video" (luồng a→b→c cũ, thụt lề vào `with`) và "Playlist" (`playlist_tab.render()`) | 1 + 9 |
 | `tests/test_ui_translations.py` (#14) | `DYNAMIC_T_ARGS` thêm `core/st_utils/playlist_tab.py` (`snapshot.current_step`, `message`; key được kiểm trong `tests/test_playlist_run.py`) | 1 |
@@ -122,6 +123,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `st.py` (#18) | import `output_lock`; tab "Single video" hiện cảnh báo thay cho luồng a→b→c khi `output_lock.is_locked()` | 1 + 3 |
 | `translations/*.json` (#18) | 1 key thông báo khoá chế độ 1 video, đủ 7 ngôn ngữ | 1 × 7 |
 | `translations/*.json` (#19) | 1 key nút "Chạy lại các video lỗi" (`Retry failed videos`), đủ 7 ngôn ngữ | 1 × 7 |
+| `core/task_runner.py` (review #13) | `check()`: như `check_cancel()` nhưng trên chính runner đó, không qua `TaskRunner._current` (luồng Lượt chạy playlist dùng) | 4 |
 
 ## Cấu hình F1 (Soniox)
 

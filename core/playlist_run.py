@@ -11,8 +11,9 @@ Public interface
   run of the same Playlist, matched by its video ID in the state file, has ``done`` set.
 - ``PlaylistRun.create(playlist, selected_ids, scope, ytdlp=None, plan=None)``: a Lượt chạy
   playlist of the selected available videos. ``scope`` is ``SUBTITLES`` (subtitles only) or
-  ``DUBBING`` (subtitles and dubbing). A video known to an earlier run keeps its history folder,
-  and a video `Xong` that is not selected stays `Xong` in the state file.
+  ``DUBBING`` (subtitles and dubbing). A video known to an earlier run keeps its history folder;
+  a video `Xong` that is not selected stays `Xong` in the state file, and a `Lỗi` video that is
+  not selected keeps its unfinished work (``partial``) for a later run that selects it.
 - ``run.start()`` makes the run the one of the process (``current_run()``) and processes the
   videos in a background thread. It raises ``PlaylistRunError`` when ``output/`` is not empty,
   another run is active, or another run is unfinished. ``run.pause()``, ``run.resume()``,
@@ -22,11 +23,13 @@ Public interface
   ``output/`` is empty. The run is then unfinished: ``run.start()`` continues it (Tiếp tục).
 - ``load_unfinished(ytdlp=None, plan=None)``: the unfinished run of this process, or the one
   of a state file in ``history/`` (after the app was closed or crashed), or None. It does not
-  run by itself. ``run.end()`` (Kết thúc lượt chạy) marks it finished and keeps history.
-- ``run.retry_failed()`` (Chạy lại các video lỗi) runs every ``FAILED`` video again, each from
-  the unfinished work in its history folder, then the videos still ``WAITING``. It raises
-  ``PlaylistRunError`` as ``run.start()`` does, or while the run is active.
-- ``run.snapshot() -> RunSnapshot``: state of the run, progress ``done/total``, the video being
+  run by itself. ``run.end()`` (Kết thúc lượt chạy) marks it finished and keeps history; its
+  videos still ``WAITING`` leave the run (no longer selected), so no more video is processed.
+- ``run.retry_failed()`` (Chạy lại các video lỗi) runs only the ``FAILED`` videos again, each from
+  the unfinished work in its history folder. The videos ``WAITING`` stay so: Tiếp tục runs them.
+  It raises ``PlaylistRunError`` as ``run.start()`` does, or while the run is active.
+- ``run.is_active``: the background thread runs, is paused or is stopping.
+- ``run.snapshot() -> RunSnapshot``: state of the run (``active`` as ``run.is_active``), progress ``done/total``, the video being
   processed and its current step, the pause message, and for each video its Trạng thái video
   (``WAITING``, ``RUNNING``, ``DONE``, ``FAILED``, ``UNAVAILABLE``), history folder, and for a
   ``FAILED`` video the step that failed and a short error message.
@@ -61,6 +64,13 @@ it. A video `Xong` that is selected again starts anew.
 While the run runs it holds the lock of ``output/`` (``core.utils.output_lock``), which the
 single video mode and the API respect; the lock goes when the background thread ends, and while
 the run is paused by ``FAILED_IN_A_ROW``. Resume after that takes it again, once ``output/`` is empty.
+``is_locked()`` decides under the lock of this module, so it never sees a run that is starting
+as stale. A state file ``running`` whose lock is held by another live process is not touched
+on loading: that process runs the playlist.
+
+The background thread checks its own ``TaskRunner`` between steps: a single video run during
+the auto-pause sets and then clears ``TaskRunner._current``, which the thread sets back before
+each video and step, for the ``check_cancel()`` calls inside the steps.
 
 Settings are read from config.yaml at each step, as in ADR-0002: a change in the sidebar
 applies to the following steps and videos.
@@ -83,7 +93,7 @@ from core.task_runner import StopTask, TaskRunner
 from core.utils import output_lock
 from core.utils.config_utils import load_key
 from core.utils.history_folder import merge_output
-from core.utils.onekeycleanup import cleanup, sanitize_filename
+from core.utils.onekeycleanup import sanitize_filename
 
 OUTPUT = Path("output")
 HISTORY = Path("history")
@@ -246,6 +256,7 @@ class RunSnapshot:
     error: str
     videos: tuple[VideoSnapshot, ...]
     unfinished: bool = False  # not active and not finished: it can be continued or ended
+    active: bool = False  # running, paused or stopping: as ``PlaylistRun.is_active``
 
 
 class PlaylistRunError(Exception):
@@ -287,21 +298,22 @@ class PlaylistRun:
             {p.name for p in root.iterdir()} if root.is_dir() else set())
         videos = []
         for video in playlist.videos:
+            known = earlier.get(video.video_id, {})
             selected = video.available and video.video_id in selected_ids
-            done = video.available and earlier.get(video.video_id, {}).get("status") == DONE
-            folder = earlier.get(video.video_id, {}).get("folder")
+            done = video.available and known.get("status") == DONE
+            folder = known.get("folder")
             if folder is None and selected:
                 folder = sanitize_filename(f"{video.index} - {video.title}")
                 if folder in taken:
                     folder = sanitize_filename(f"{video.index} - {video.title} [{video.video_id}]")
                 taken.add(folder)
             status = UNAVAILABLE if not video.available else DONE if done and not selected else WAITING
-            # unfinished work of an earlier run (a `Lỗi` video): it goes on from its history folder
-            partial = selected and not done and bool(earlier.get(video.video_id, {}).get("partial"))
+            # unfinished work of an earlier run (a `Lỗi` video): it goes on from its history folder,
+            # in this run or, when not selected, in a later one
+            partial = not done and bool(known.get("partial"))
             videos.append(VideoSnapshot(
                 video_id=video.video_id, index=video.index, title=video.title, duration=video.duration,
-                selected=selected, status=status, folder=folder if selected or done else None,
-                url=video.url, partial=partial))
+                selected=selected, status=status, folder=folder, url=video.url, partial=partial))
         return cls(url=playlist.url, title=playlist.title, scope=scope, videos=videos,
                    ytdlp=ytdlp or Ytdlp(), plan=plan)
 
@@ -313,10 +325,11 @@ class PlaylistRun:
         run = cls(url=data["url"], title=data["title"], scope=data["scope"],
                   videos=[VideoSnapshot(**v) for v in data["videos"]], ytdlp=ytdlp or Ytdlp(), plan=plan,
                   run_state=data["state"])
-        if run.run_state == RUN_RUNNING:  # closed or crashed: the work of the video is in output/
+        # closed or crashed: the work of the video is in output/, unless another process runs it
+        if run.run_state == RUN_RUNNING and not output_lock.is_locked():
             for position, video in enumerate(run.videos):
                 if video.status == RUNNING:
-                    merge_output(run.folder / video.folder)
+                    _save_output(run.folder / video.folder)
                     run.videos[position] = replace(video, status=WAITING, partial=True)
             run._save(RUN_INTERRUPTED)
         return run
@@ -326,14 +339,24 @@ class PlaylistRun:
         """``history/<playlist>/``, which holds the state file and the folder of each video."""
         return HISTORY / sanitize_filename(self.title)
 
+    @property
+    def is_active(self) -> bool:
+        return self._runner.is_active
+
     # ------ Control ------
 
     def start(self):
+        """Process every selected video ``WAITING``: the start of the run, or Tiếp tục."""
+        with _lock:
+            self._start([p for p, v in enumerate(self.videos) if v.selected and v.status == WAITING], RUN_FINISHED)
+
+    def _start(self, positions, final_state):
+        """Process the videos at ``positions``; the state file is ``final_state`` once they are."""
         global _current
         with _lock:
-            if _current is not None and _current is not self and _current._runner.is_active:
+            if _current is not None and _current is not self and _current.is_active:
                 raise PlaylistRunError(RUN_ACTIVE)
-            if self._runner.is_active:
+            if self.is_active:
                 raise PlaylistRunError(RUN_ACTIVE)
             if output_lock.is_locked():  # a run of another process; a stale lock is removed
                 raise PlaylistRunError(RUN_ACTIVE)
@@ -341,16 +364,19 @@ class PlaylistRun:
             if unfinished is not None and not (self.run_state == RUN_INTERRUPTED
                                                and unfinished == self.folder / STATE_FILE):
                 raise PlaylistRunError(RUN_UNFINISHED)
-            if OUTPUT.exists() and any(OUTPUT.iterdir()):
+            if not _output_empty():
                 raise PlaylistRunError(OUTPUT_NOT_EMPTY)
-            _current = self
+            previous = self.run_state
             self._save(RUN_RUNNING)
-            output_lock.acquire()
             try:
-                self._runner.start([("Playlist", self._process_all)])
+                output_lock.acquire()
+                self._runner.start([("Playlist", lambda: self._process_all(positions, final_state))])
             except BaseException:
                 output_lock.release()
+                if previous:
+                    self._save(previous)
                 raise
+            _current = self
 
     def pause(self):
         self._runner.pause()
@@ -359,7 +385,7 @@ class PlaylistRun:
         with _lock:
             if self._runner.state == "paused" and not output_lock.LOCK_FILE.exists():
                 # auto-pause released output/: the single video mode may have used it meanwhile
-                if OUTPUT.exists() and any(OUTPUT.iterdir()):
+                if not _output_empty():
                     raise PlaylistRunError(OUTPUT_NOT_EMPTY)
                 output_lock.acquire()
             self._runner.resume()
@@ -369,23 +395,34 @@ class PlaylistRun:
         self._runner.stop()
 
     def retry_failed(self):
-        """Chạy lại các video lỗi: each `Lỗi` video runs again from its history folder."""
+        """Chạy lại các video lỗi: only the `Lỗi` videos run again, each from its history folder.
+
+        The videos `Chờ` stay so: an unfinished run is unfinished again afterwards (Tiếp tục).
+        """
         with _lock:
-            if self._runner.is_active:
+            if self.is_active:
                 raise PlaylistRunError(RUN_ACTIVE)
             videos = self.videos
-            self.videos = [replace(v, status=WAITING) if v.selected and v.status == FAILED else v for v in videos]
-        try:
-            self.start()
-        except BaseException:
-            self.videos = videos  # refused: they stay `Lỗi`
-            raise
+            positions = [p for p, v in enumerate(videos) if v.selected and v.status == FAILED]
+            self.videos = [replace(v, status=WAITING) if p in positions else v for p, v in enumerate(videos)]
+            try:
+                self._start(positions, RUN_INTERRUPTED if self.run_state == RUN_INTERRUPTED else RUN_FINISHED)
+            except BaseException:
+                self.videos = videos  # refused: they stay `Lỗi`, in the state file too
+                if self.run_state:
+                    self._save(self.run_state)
+                raise
 
     def end(self):
-        """Kết thúc lượt chạy: no more video is processed, history is kept as it is."""
+        """Kết thúc lượt chạy: no more video is processed, history is kept as it is.
+
+        The videos still `Chờ` leave the run; their unfinished work stays in their history folder.
+        """
         with _lock:
-            if self._runner.is_active:
+            if self.is_active:
                 raise PlaylistRunError(RUN_ACTIVE)
+            self.videos = [replace(v, selected=False) if v.selected and v.status == WAITING else v
+                           for v in self.videos]
             self._save(RUN_FINISHED)
 
     def wait(self, timeout=None) -> bool:
@@ -393,24 +430,25 @@ class PlaylistRun:
         thread = self._runner._thread
         if thread:
             thread.join(timeout)
-        return not self._runner.is_active
+        return not self.is_active
 
     # ------ State ------
 
     def snapshot(self) -> RunSnapshot:
         videos = tuple(self.videos)
+        active = self.is_active
         current = next((v for v in videos if v.status == RUNNING), None)
         return RunSnapshot(
             state=self._runner.state, url=self.url, title=self.title, scope=self.scope,
             done=sum(v.selected and v.status == DONE for v in videos),
             total=sum(v.selected for v in videos),
-            current_video=self._public(current) if current else None,
+            current_video=self._with_history_path(current) if current else None,
             current_step=self.current_step if current else "",
             pause_message=self._runner.pause_message, error=self._runner.error_msg,
-            videos=tuple(self._public(v) for v in videos),
-            unfinished=self.run_state in (RUN_RUNNING, RUN_INTERRUPTED) and not self._runner.is_active)
+            videos=tuple(self._with_history_path(v) for v in videos),
+            unfinished=self.run_state in (RUN_RUNNING, RUN_INTERRUPTED) and not active, active=active)
 
-    def _public(self, video):
+    def _with_history_path(self, video):
         """The video with the path of its history folder."""
         return replace(video, folder=str(self.folder / video.folder) if video.folder else None)
 
@@ -430,14 +468,23 @@ class PlaylistRun:
 
     # ------ Background thread ------
 
-    def _process_all(self):
+    def _check_cancel(self):
+        """Pause or stop here, as asked of the runner of this run.
+
+        Also makes it ``TaskRunner._current`` again for the ``check_cancel()`` inside the steps: a
+        single video run during the auto-pause sets it to its own runner, then to None.
+        """
+        TaskRunner._current = self._runner
+        self._runner.check()
+        TaskRunner._current = self._runner
+
+    def _process_all(self, positions, final_state):
         try:
-            output_lock.acquire()  # again: until the thread ran, is_locked() could take it for stale
             failures = 0  # videos failed in a row
-            pending = deque(p for p, v in enumerate(self.videos) if v.selected and v.status == WAITING)
+            pending = deque(positions)
             while pending:
                 position = pending.popleft()
-                TaskRunner.check_cancel()
+                self._check_cancel()
                 try:
                     self._process(position)
                     failures = 0
@@ -450,14 +497,15 @@ class PlaylistRun:
                         # first: a Resume that follows the pause must find the lock gone
                         output_lock.release()  # the user may fix the cause in the single video mode
                         self._runner.pause(FAILED_IN_A_ROW)
-                        TaskRunner.check_cancel()
+                        self._check_cancel()
                         pending.appendleft(position)  # resumed: the video that just failed runs first
         except Exception:  # a stop, or an error that is not of one video: the run can be continued
             self._park()
             raise
         else:
             self.current_step = ""
-            self._save(RUN_FINISHED)
+            more = any(v.selected and v.status == WAITING for v in self.videos)
+            self._save(final_state if more else RUN_FINISHED)
         finally:
             output_lock.release()
 
@@ -467,7 +515,7 @@ class PlaylistRun:
             if video.status == RUNNING:
                 self.videos[position] = replace(video, status=WAITING, partial=True)
                 try:
-                    merge_output(self.folder / video.folder)
+                    _save_output(self.folder / video.folder)
                 except OSError:  # left in output/: Tiếp tục asks to empty it first
                     traceback.print_exc()
         self.current_step = ""
@@ -484,13 +532,13 @@ class PlaylistRun:
             self.ytdlp.download(video.url)
         from core.pipeline import get_steps
         for label, step in (self.plan or get_steps)("all", self.scope == DUBBING):
-            TaskRunner.check_cancel()
+            self._check_cancel()
             self.current_step = label
             step()
-        TaskRunner.check_cancel()
+        self._check_cancel()
         self.current_step = SAVE_STEP
-        cleanup(destination=str(self.folder / video.folder))
-        if OUTPUT.exists() and any(p != output_lock.LOCK_FILE for p in OUTPUT.iterdir()):
+        _save_output(self.folder / video.folder)
+        if not _output_empty():
             raise RuntimeError(f"Some files of output/ could not be moved to {self.folder / video.folder}")
         self._set_status(position, DONE)
 
@@ -499,9 +547,9 @@ class PlaylistRun:
         traceback.print_exception(error)
         step, self.current_step = self.current_step, ""
         destination = self.folder / self.videos[position].folder
-        cleanup(destination=str(destination))
+        _save_output(destination)
         self._set_status(position, FAILED, failed_step=step, error=_short(error), partial=True)
-        if OUTPUT.exists() and any(p != output_lock.LOCK_FILE for p in OUTPUT.iterdir()):
+        if not _output_empty():
             raise RuntimeError(f"Some files of output/ could not be moved to {destination}")
 
 
@@ -511,13 +559,29 @@ def _short(error):
     return lines[0][:ERROR_LENGTH] if lines else type(error).__name__
 
 
-_lock = threading.Lock()
+_lock = threading.RLock()  # also taken by output_lock.is_locked() through run_alive()
 _current: "PlaylistRun | None" = None
 
 
 def current_run() -> "PlaylistRun | None":
     """The Lượt chạy playlist of this process, shared by every browser tab, or None."""
     return _current
+
+
+def run_alive() -> bool:
+    """A run of this process is active; read under the lock, so a run being started counts."""
+    with _lock:
+        return _current is not None and _current.is_active
+
+
+def _output_empty() -> bool:
+    """``output/`` holds nothing but the lock of the run."""
+    return not OUTPUT.exists() or all(p == output_lock.LOCK_FILE for p in OUTPUT.iterdir())
+
+
+def _save_output(destination):
+    """Move ``output/`` into ``destination``, keeping what it holds; the lock stays in ``output/``."""
+    merge_output(destination, exclude=(output_lock.LOCK_FILE.name,))
 
 
 def _has_media():
@@ -550,7 +614,7 @@ def load_unfinished(ytdlp=None, plan=None) -> "PlaylistRun | None":
     """
     global _current
     with _lock:
-        if _current is not None and (_current._runner.is_active or _current.snapshot().unfinished):
+        if _current is not None and (_current.is_active or _current.snapshot().unfinished):
             return _current
         path = _unfinished_state_file()
         if path is None:
