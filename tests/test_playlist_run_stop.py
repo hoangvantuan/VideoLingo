@@ -103,8 +103,8 @@ def test_stop_parks_the_unfinished_video_in_its_history_folder_and_leaves_output
     assert files(FIRST) == ["First intro.mp4", "gpt_log/cache.json", "log/asr.json"]
     state = state_file()
     assert state["state"] == "interrupted"
-    assert [(v["video_id"], v["status"]) for v in state["videos"] if v["selected"]] == [
-        ("a1", "waiting"), ("c3", "waiting")]
+    assert [(v["video_id"], v["status"], v["partial"]) for v in state["videos"] if v["selected"]] == [
+        ("a1", "waiting", True), ("c3", "waiting", False)]
     assert TaskRunner._current is None
 
 

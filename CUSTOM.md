@@ -54,6 +54,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
 | `core/playlist_run.py`, `core/st_utils/playlist_tab.py` (#16) | Stop (`run.stop()`: video dở chuyển vào thư mục history của nó, về `Chờ`, `output/` trống, file trạng thái `interrupted`), Tiếp tục (`load_unfinished()` tìm lượt dở trong `history/` khi mở app hoặc sau crash, không tự chạy; `run.start()` chuyển phần dở từ history về `output/`, không tải lại), Kết thúc lượt chạy (`run.end()`), một lượt mỗi lúc (`RUN_UNFINISHED`) |
 | `tests/test_playlist_run_stop.py` | Test #16: Stop giữa chừng, nạp lại từ file trạng thái rồi tiếp tục, crash, kết thúc lượt chạy |
+| `tests/test_playlist_rerun.py` | Test #17: đọc lại Playlist đã chạy thì video `Xong` (theo video ID trong file trạng thái) được đánh dấu `done` và bỏ chọn sẵn trên tab; video `Xong` được tick lại thì làm lại vào đúng thư mục cũ; video mới không lấy trùng thư mục của video khác |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
