@@ -15,6 +15,7 @@ def render():
         "Âm lượng gốc (Thuyết minh)", min_value=0.0, max_value=1.0, value=current, step=0.05,
         help="Mức âm thanh gốc của video giữ lại dưới giọng lồng tiếng (0.25 = 25%). "
              "0 = tắt Thuyết minh: trộn như cũ (track nền Demucs nếu có, không thì chỉ giọng lồng tiếng).",
+        key="original_volume",  # stable id: one built from `value=` changes on each save and drops the next edit
     ), 2)  # the float step can return 0.30000000000000004
     if volume != current:
         update_key("original_volume", volume, add_missing=True)

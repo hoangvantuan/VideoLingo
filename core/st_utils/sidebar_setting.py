@@ -269,7 +269,10 @@ def page_setting():
         if runtime == "elevenlabs":
             config_input(t("ElevenLabs API"), "whisper.elevenlabs_api_key")
         elif runtime == "soniox":  # custom: SONIOX_API_KEY env var takes precedence
-            config_input("Soniox API", "whisper.soniox_api_key")
+            soniox_key = st.text_input("Soniox API", value=load_key("whisper.soniox_api_key"), type="password",  # custom: F1, masked
+                                       key="whisper_soniox_api_key")  # custom: stable id, see tests/test_consecutive_edits.py
+            if soniox_key != load_key("whisper.soniox_api_key"):  # custom
+                update_key("whisper.soniox_api_key", soniox_key)  # custom
         elif runtime == "mai":
             from core.asr_backend.mai_asr import detect_region
 

@@ -134,9 +134,33 @@ def test_deleting_the_active_profile_goes_back_to_the_custom_profile(config):
     at = opened()
     at = field(at, "Sửa profile").select("local").run()
     at = button(at, "🗑 Xóa profile").click().run()
+    at = button(at, "Xác nhận xóa").click().run()
     assert not at.exception
     assert list(load_key("llm_profiles")) == ["openrouter-free"]
     assert load_key("api.profile") == ""
+
+
+def test_deleting_asks_for_a_confirmation_first(config):
+    config(WITH_PROFILES)
+    at = opened()
+    at = field(at, "Sửa profile").select("openrouter-free").run()
+    at = button(at, "🗑 Xóa profile").click().run()
+    assert not at.exception
+    assert list(load_key("llm_profiles")) == ["openrouter-free", "local"]
+    assert "openrouter-free" in at.warning[0].value
+    at = button(at, "Hủy").click().run()
+    assert list(load_key("llm_profiles")) == ["openrouter-free", "local"]
+    assert not [item for item in at.button if item.label == "Xác nhận xóa"]
+
+
+def test_a_pending_confirmation_does_not_follow_a_switch_to_another_profile(config):
+    config(WITH_PROFILES)
+    at = opened()
+    at = field(at, "Sửa profile").select("openrouter-free").run()
+    at = button(at, "🗑 Xóa profile").click().run()
+    at = field(at, "Sửa profile").select("local").run()
+    assert not [item for item in at.button if item.label == "Xác nhận xóa"]
+    assert list(load_key("llm_profiles")) == ["openrouter-free", "local"]
 
 
 def test_deleting_another_profile_keeps_the_active_one(config):
@@ -144,6 +168,7 @@ def test_deleting_another_profile_keeps_the_active_one(config):
     at = opened()
     at = field(at, "Sửa profile").select("openrouter-free").run()
     at = button(at, "🗑 Xóa profile").click().run()
+    at = button(at, "Xác nhận xóa").click().run()
     assert list(load_key("llm_profiles")) == ["local"]
     assert load_key("api.profile") == "local"
 

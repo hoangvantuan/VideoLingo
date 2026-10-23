@@ -26,6 +26,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/tts_backend/vertex_tts.py` | F9 — phương thức lồng tiếng `vertex_tts` (Cloud Text-to-Speech REST, Chirp 3 HD) |
 | `core/st_utils/vertex_tts_settings.py` | F9 — giao diện chọn giọng Cloud TTS (lọc theo `vertex_tts.language`, Chirp 3 HD trước), ngôn ngữ, tốc độ |
 | `tests/test_vertex_tts_settings.py` | Test cho màn hình giọng F9 (Streamlit `AppTest`, danh sách giọng giả) |
+| `tests/test_consecutive_edits.py` | Test F9/F10: hai lần sửa liên tiếp ô Vertex TTS và thanh "Âm lượng gốc" đều được lưu (widget có `key=` cố định, id không đổi khi lưu) |
 | `tests/test_vertex_tts.py` | Test cho F9 (backend, liệt kê/lọc giọng, giọng mặc định, nhánh dispatcher) |
 | `tests/test_vertex_llm.py` | Test cho F8 (profile Vertex qua seam `ask_gpt`, client OpenAI và credential Google giả) |
 | `core/st_utils/config_fields.py` | #11 — đọc khóa mới với mặc định lấy từ `config.example.yaml`, ghi khóa (kể cả mục cha) vào `config.yaml` cũ; dùng chung cho các ô cấu hình của fork |
@@ -45,7 +46,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | File | Thay đổi | Số dòng |
 |---|---|---|
 | `core/_2_asr.py` | thêm `"soniox"` vào danh sách runtime; kiểm tra key trước khi chuẩn bị media; nhánh `elif runtime == "soniox"` | 6 |
-| `core/st_utils/sidebar_setting.py` | thêm `"soniox"` vào ô chọn runtime (nhãn cố định, không qua `t()`) và ô nhập key | 4 |
+| `core/st_utils/sidebar_setting.py` | thêm `"soniox"` vào ô chọn runtime (nhãn cố định, không qua `t()`) và ô nhập key (ẩn ký tự, `type="password"`) | 7 |
 | `core/tts_backend/tts_main.py` | import + nhánh `elif TTS_METHOD == 'soniox_tts'` | 3 |
 | `core/st_utils/tts_settings.py` | provider `"Soniox"` trong `PROVIDERS` và `KEY_PATHS` | 2 |
 | `core/st_utils/sidebar_setting.py` (F6) | nhãn `soniox_tts` + nhánh gọi `soniox_tts_settings.render()` | 4 |
@@ -234,7 +235,7 @@ Mọi khóa mới của F7–F10 đặt được trên sidebar, kể cả khi `c
 | Khóa | Chỗ đặt trên sidebar |
 |---|---|
 | `api.profile` | **LLM Configuration → Profile đang dùng** (hiện khi có ít nhất một profile) |
-| `llm_profiles.<tên>.*` | **LLM Configuration → Quản lý LLM profile & Vertex AI** → ô **Sửa profile**: *➕ Profile mới* hoặc tên profile, rồi **💾 Lưu profile** / **🗑 Xóa profile** |
+| `llm_profiles.<tên>.*` | **LLM Configuration → Quản lý LLM profile & Vertex AI** → ô **Sửa profile**: *➕ Profile mới* hoặc tên profile, rồi **💾 Lưu profile** / **🗑 Xóa profile** (rồi **Xác nhận xóa**; **Hủy** để giữ) |
 | `vertex.project`, `vertex.location_llm` | cùng chỗ, phần **Vertex AI (dùng chung cho Khâu Dịch và Lồng tiếng)**; ghi ngay khi rời ô |
 | `vertex_tts.voice`, `.language`, `.speed`, `.max_workers` | **Dubbing Settings → TTS Provider = Vertex AI** (ô **Vertex parallel requests (max_workers)**, tối thiểu 1) |
 | `original_volume` | **Dubbing Settings → Âm lượng gốc (Thuyết minh)** |
