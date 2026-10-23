@@ -47,6 +47,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/fixtures/config.yaml`, `tests/template_config.py` | #22 — bản mẫu `config.yaml` mà test đọc/chép (`TEMPLATE_CONFIG`), để test không phụ thuộc `config.yaml` của người vận hành. Sửa `config.yaml` mẫu thì làm mới: `git show HEAD:config.yaml > tests/fixtures/config.yaml` |
 | `scripts/upgrade_config.py` | #22 — script người dùng tự chạy: đặt giá trị của `config.yaml` đang dùng lên bản mẫu của repo (`--dry-run`, `--template`, sao lưu `config.before-upgrade.yaml` quyền 600) |
 | `tests/test_upgrade_config.py` | Test #22: script nâng cấp config (file tạm) |
+| `core/utils/history_folder.py` | #14 — `merge_output(destination)`: chuyển toàn bộ `output/` (kể cả `log/`, `gpt_log/`) vào thư mục history chọn sẵn, không xoá nội dung đã có ở đích |
+| `tests/test_history_destination.py` | Test #14: lưu vào thư mục history chọn sẵn giữ nội dung cũ |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -95,6 +97,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `.dockerignore` (#22) | `config.yaml` không còn bị loại khỏi image (cần cho container); loại `config.backup.yaml`, `config.before-upgrade.yaml` (có thể chứa key thật) | 3 |
 | `tests/test_backlog_fixes.py`, `tests/test_dependencies.py`, `tests/test_language_support.py`, `tests/test_audio_extract_quality.py`, `tests/test_pipeline_integration.py` (#22) | đọc/chép `TEMPLATE_CONFIG` (`tests/fixtures/config.yaml`) thay cho `config.yaml` của repo; test ghép phụ đề trỏ `CONFIG_PATH` vào bản mẫu | 3 + 3 + 2 + 2 + 2 |
 | `config.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
+| `core/utils/onekeycleanup.py` (#14) | import `merge_output`; `cleanup(destination=...)` chuyển `output/` vào thư mục chọn sẵn, giữ nội dung đã có (không có `destination` thì như cũ) | 4 |
 
 ## Cấu hình F1 (Soniox)
 
