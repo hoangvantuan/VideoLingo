@@ -12,7 +12,7 @@ display_language: "ja"
 # API settings
 api:
   # *Custom (F7): active LLM profile, a name from llm_profiles; '' = the custom profile (this api: section)
-  profile: 'gemini-lite'
+  profile: 'gemini-flash'
   key: '${LLM_API_KEY}'    # custom: #21, keys live in .env, see .env.example and CUSTOM.md "Key trong .env"
   base_url: 'https://openrouter.ai/api/v1'
   model: 'deepseek/deepseek-v4.1-flash-1017'
