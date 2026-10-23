@@ -329,6 +329,7 @@ class PlaylistRun:
 
     def _process_all(self):
         try:
+            output_lock.acquire()  # again: until the thread ran, is_locked() could take it for stale
             for position, video in enumerate(self.videos):
                 if video.selected and video.status == WAITING:
                     TaskRunner.check_cancel()
