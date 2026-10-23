@@ -257,5 +257,9 @@
     "Download video": "Descargar vídeo",
     "Save to 'history'": "Guardar en 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` contiene los archivos de otro vídeo. Archívalos en 'history' o elimínalos en el modo de un solo vídeo y luego inicia la lista.",
-    "A playlist run is already active.": "Ya hay una ejecución de lista activa."
+    "A playlist run is already active.": "Ya hay una ejecución de lista activa.",
+    "Continue": "Continuar",
+    "End run": "Terminar la ejecución",
+    "Playlist run stopped. The unfinished video is kept in its history folder.": "Ejecución de la lista detenida. El video sin terminar se guarda en su carpeta del historial.",
+    "A playlist run is unfinished. Continue it or end it first.": "Hay una ejecución de lista sin terminar. Continúala o termínala primero."
 }

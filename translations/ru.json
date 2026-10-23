@@ -257,5 +257,9 @@
     "Download video": "Скачать видео",
     "Save to 'history'": "Сохранить в 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "В `output/` лежат файлы другого видео. Архивируйте их в 'history' или удалите в режиме одного видео, затем запустите плейлист.",
-    "A playlist run is already active.": "Обработка плейлиста уже идёт."
+    "A playlist run is already active.": "Обработка плейлиста уже идёт.",
+    "Continue": "Продолжить",
+    "End run": "Завершить запуск",
+    "Playlist run stopped. The unfinished video is kept in its history folder.": "Запуск плейлиста остановлен. Незавершённое видео сохранено в его папке истории.",
+    "A playlist run is unfinished. Continue it or end it first.": "Есть незавершённый запуск плейлиста. Сначала продолжите или завершите его."
 }

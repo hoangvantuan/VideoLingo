@@ -1,7 +1,8 @@
 """Tab "Playlist": read a Playlist, select its videos and follow the Lượt chạy playlist.
 
 The run belongs to the process (``playlist_run.current_run()``), not to the session of a tab,
-so a new tab or F5 shows the same progress and controls it.
+so a new tab or F5 shows the same progress and controls it. An unfinished run (stopped, or
+left by a closed app) shows "Continue" and "End run" and never runs by itself.
 """
 import streamlit as st
 
@@ -35,6 +36,7 @@ def _run_panel():
         return
     snapshot = run.snapshot()
     active = snapshot.state in ("running", "paused", "stopping")
+    busy = active or snapshot.unfinished
     st.subheader(snapshot.title)
     st.progress(snapshot.done / snapshot.total if snapshot.total else 0.0,
                 text=f"{snapshot.done}/{snapshot.total}")
@@ -45,13 +47,42 @@ def _run_panel():
         st.info(f"{icon} {video.index}. {video.title} — {step}")
     if snapshot.state == "paused":
         st.warning(f"⏸️ {t('Paused')}")
-        if st.button(f"▶️ {t('Resume')}", key="playlist_resume", width="stretch"):
+        col1, col2 = st.columns(2)
+        if col1.button(f"▶️ {t('Resume')}", key="playlist_resume", width="stretch"):
             run.resume()
             st.rerun()
+        if col2.button(f"⏹️ {t('Stop')}", key="playlist_stop_paused", width="stretch"):
+            run.stop()
+            st.rerun()
     elif snapshot.state == "running":
-        if st.button(f"⏸️ {t('Pause')}", key="playlist_pause", width="stretch"):
+        col1, col2 = st.columns(2)
+        if col1.button(f"⏸️ {t('Pause')}", key="playlist_pause", width="stretch"):
             run.pause()
             st.rerun()
+        if col2.button(f"⏹️ {t('Stop')}", key="playlist_stop", width="stretch"):
+            run.stop()
+            st.rerun()
+    elif snapshot.state == "stopping":
+        st.info(t("Stopping..."))
+    elif snapshot.unfinished:
+        st.warning(f"⏹️ {t('Playlist run stopped. The unfinished video is kept in its history folder.')}")
+        col1, col2 = st.columns(2)
+        if col1.button(f"▶️ {t('Continue')}", key="playlist_continue", width="stretch"):
+            try:
+                run.start()
+            except playlist_run.PlaylistRunError as e:
+                message = str(e)
+                st.error(t(message))
+            else:
+                st.rerun()
+        if col2.button(f"🏁 {t('End run')}", key="playlist_end", width="stretch"):
+            try:
+                run.end()
+            except playlist_run.PlaylistRunError as e:
+                message = str(e)
+                st.error(t(message))
+            else:
+                st.rerun()
     elif snapshot.state == "completed":
         st.success(t("Playlist run completed!"))
     elif snapshot.state == "error":
@@ -65,10 +96,10 @@ def _run_panel():
         hide_index=True, width="stretch")
 
     # The form of a new run follows the end of this one
-    if st.session_state.get("_playlist_run_active", active) != active:
-        st.session_state["_playlist_run_active"] = active
+    if st.session_state.get("_playlist_run_active", busy) != busy:
+        st.session_state["_playlist_run_active"] = busy
         st.rerun(scope="app")
-    st.session_state["_playlist_run_active"] = active
+    st.session_state["_playlist_run_active"] = busy
 
 
 def _start_form(playlist):
@@ -101,11 +132,12 @@ def _start_form(playlist):
 
 def render():
     st.caption(t("Settings in the sidebar are read at each step: a change during a playlist run applies to the following steps and videos."))
-    run = playlist_run.current_run()
+    # A run left unfinished by a closed app is found in history/; it waits for "Continue"
+    run = playlist_run.load_unfinished() or playlist_run.current_run()
     if run is not None:
         with st.container(border=True):
             _run_panel()
-    if run is not None and run.snapshot().state in ("running", "paused", "stopping"):
+    if run is not None and (run.snapshot().state in ("running", "paused", "stopping") or run.snapshot().unfinished):
         return
 
     with st.container(border=True):
