@@ -81,3 +81,15 @@ def test_the_new_keys_are_set_from_the_sidebar_and_used_by_the_next_run(old_conf
     assert vertex_tts.request_payload("x")["voice"]["name"] == "vi-VN-Chirp3-HD-Charon"
     assert llm_max_workers() == load_key("max_workers")
     assert load_key_or("whisper.runtime", None) == "local"
+
+
+def test_the_soniox_asr_key_is_masked_and_saved(old_config):
+    from streamlit.proto.TextInput_pb2 import TextInput
+
+    config_utils.update_key("whisper.runtime", "soniox")
+    at = AppTest.from_function(_sidebar).run(timeout=30)
+    key = widget(at, "text_input", "Soniox API")
+    assert key.proto.type == TextInput.PASSWORD
+    at = key.input("placeholder-key").run(timeout=30)
+    assert not at.exception
+    assert load_key("whisper.soniox_api_key") == "placeholder-key"
