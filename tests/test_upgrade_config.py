@@ -137,3 +137,10 @@ def test_invalid_yaml_names_the_line_without_quoting_it(script, files, capsys):
         run(script, template, config)
     assert SECRET not in str(error.value) and "line" in str(error.value)
     assert SECRET not in capsys.readouterr().out
+
+
+def test_a_rewrite_with_no_key_change_says_so(script, files, capsys):
+    template, config = files
+    config.write_text(textwrap.dedent(TEMPLATE).replace("timeout: 60", "timeout:   60"), encoding="utf-8")
+    assert run(script, template, config, "--dry-run") == 0
+    assert "No key path changes; only formatting or comments differ." in capsys.readouterr().out

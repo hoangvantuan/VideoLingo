@@ -84,6 +84,8 @@ def main(argv=None):
     if result == original:
         print("Nothing to upgrade.")
         return 0
+    if not added and not kept:
+        print("No key path changes; only formatting or comments differ.")
     if args.dry_run:
         print("Dry run: nothing written.")
         return 0
