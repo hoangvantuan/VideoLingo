@@ -55,10 +55,12 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/playlist_run.py`, `core/st_utils/playlist_tab.py` (#16) | Stop (`run.stop()`: video dở chuyển vào thư mục history của nó, về `Chờ`, `output/` trống, file trạng thái `interrupted`), Tiếp tục (`load_unfinished()` tìm lượt dở trong `history/` khi mở app hoặc sau crash, không tự chạy; `run.start()` chuyển phần dở từ history về `output/`, không tải lại), Kết thúc lượt chạy (`run.end()`), một lượt mỗi lúc (`RUN_UNFINISHED`) |
 | `tests/test_playlist_run_stop.py` | Test #16: Stop giữa chừng, nạp lại từ file trạng thái rồi tiếp tục, crash, kết thúc lượt chạy |
 | `core/utils/output_lock.py` | #18 — khoá `output/.playlist_run.lock` (ghi PID) trong lúc Lượt chạy playlist đang chạy; `is_locked()` cho chế độ 1 video và API, bỏ (và xoá) khoá cũ sau crash: cùng tiến trình mà không còn lượt chạy sống, hoặc tiến trình ghi khoá đã chết |
-| `tests/test_output_lock.py` | Test #18: khoá lúc chạy, pause, lỗi, stop; khoá cũ sau crash; khoá của tiến trình khác; tự pause vì 2 lỗi liên tiếp (#15) thì nhả khoá, Resume chỉ lấy lại khi `output/` trống |
+| `tests/test_output_lock.py` | Test #18: khoá lúc chạy, pause, lỗi, stop; khoá cũ sau crash; khoá của tiến trình khác; tự pause vì 2 lỗi liên tiếp (#15) thì nhả khoá, Resume chỉ lấy lại khi `output/` trống (#19: Resume chạy lại video vừa lỗi trước) |
 | `tests/test_playlist_rerun.py` | Test #17: đọc lại Playlist đã chạy thì video `Xong` (theo video ID trong file trạng thái) được đánh dấu `done` và bỏ chọn sẵn trên tab; video `Xong` được tick lại thì làm lại vào đúng thư mục cũ; video mới không lấy trùng thư mục của video khác |
 | `core/playlist_run.py`, `core/st_utils/playlist_tab.py` | #15 — video lỗi không chặn lượt chạy: video `Lỗi` kèm bước hỏng và lỗi ngắn (snapshot, file trạng thái, cột trên tab), phần dở chuyển vào history của video rồi chạy tiếp; 2 video lỗi liên tiếp thì tự pause với `FAILED_IN_A_ROW` và nhả khoá `output/` (#18); Resume lấy lại khoá, báo `OUTPUT_NOT_EMPTY` nếu `output/` có file khác |
-| `tests/test_playlist_failures.py` | Test #15: pipeline giả ném lỗi ở bước chỉ định: một video lỗi rồi chạy tiếp, lỗi khi tải, 2 lỗi liên tiếp tự pause, video thành công xen giữa đặt lại bộ đếm |
+| `tests/test_playlist_failures.py` | Test #15: pipeline giả ném lỗi ở bước chỉ định: một video lỗi rồi chạy tiếp, lỗi khi tải, 2 lỗi liên tiếp tự pause (#19: Resume chạy lại video vừa lỗi trước), video thành công xen giữa đặt lại bộ đếm |
+| `core/playlist_run.py`, `core/st_utils/playlist_tab.py` (#19) | Chạy lại các video lỗi (`run.retry_failed()`, nút trên tab): mỗi video `Lỗi` chuyển phần dở từ history về `output/` và tiếp từ bước hỏng, không tải lại; Resume sau tự pause chạy lại video vừa lỗi trước; video `Lỗi` được tick lại trong lượt chạy mới cũng tiếp từ phần dở (`partial` từ file trạng thái); lỗi không thuộc một video (file trạng thái, chuyển file) cất video đang chạy vào history, lượt chạy thành `interrupted` để Tiếp tục |
+| `tests/test_playlist_retry_failed.py` | Test #19: pipeline giả bỏ qua bước đã có file trung gian: Resume sau tự pause chạy lại video vừa lỗi trước, chạy lại video lỗi không lặp bước đã xong và dùng cache LLM, lỗi ngoài video không để video `Đang chạy` |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -119,6 +121,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `tests/test_api.py` (#18) | test `test_a_playlist_run_lock_rejects_mutations_and_a_stale_one_does_not` | 1 hàm |
 | `st.py` (#18) | import `output_lock`; tab "Single video" hiện cảnh báo thay cho luồng a→b→c khi `output_lock.is_locked()` | 1 + 3 |
 | `translations/*.json` (#18) | 1 key thông báo khoá chế độ 1 video, đủ 7 ngôn ngữ | 1 × 7 |
+| `translations/*.json` (#19) | 1 key nút "Chạy lại các video lỗi" (`Retry failed videos`), đủ 7 ngôn ngữ | 1 × 7 |
 
 ## Cấu hình F1 (Soniox)
 

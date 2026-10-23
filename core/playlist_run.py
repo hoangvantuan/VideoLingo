@@ -23,6 +23,9 @@ Public interface
 - ``load_unfinished(ytdlp=None, plan=None)``: the unfinished run of this process, or the one
   of a state file in ``history/`` (after the app was closed or crashed), or None. It does not
   run by itself. ``run.end()`` (Kết thúc lượt chạy) marks it finished and keeps history.
+- ``run.retry_failed()`` (Chạy lại các video lỗi) runs every ``FAILED`` video again, each from
+  the unfinished work in its history folder, then the videos still ``WAITING``. It raises
+  ``PlaylistRunError`` as ``run.start()`` does, or while the run is active.
 - ``run.snapshot() -> RunSnapshot``: state of the run, progress ``done/total``, the video being
   processed and its current step, the pause message, and for each video its Trạng thái video
   (``WAITING``, ``RUNNING``, ``DONE``, ``FAILED``, ``UNAVAILABLE``), history folder, and for a
@@ -38,18 +41,22 @@ and error; its unfinished work, with ``log/`` and ``gpt_log/``, is moved into it
 without deleting what the folder holds, and the run goes on with the next video. When
 ``FAILURES_TO_PAUSE`` videos fail in a row the run pauses itself with ``FAILED_IN_A_ROW``: that is
 most often a system error (quota, API key, network, cookies). A video done in between resets
-the count.
+the count. Resume runs the video that just failed again first, then the videos ``WAITING``; if it
+fails again the run pauses again.
 
 The state file ``history/<playlist>/playlist_run.json`` holds the URL, title, scope, the run
 state (``running``, ``interrupted`` once stopped, or ``finished``) and every video with its
 status and folder. It is written after every change of a Trạng thái video. A ``running`` state
 with no run alive in the process means the app was closed or crashed: the work of the video
 that was ``RUNNING`` is still in ``output/`` and is moved into its history folder on loading.
+An error that is not of one video (the state file, moving files) ends the thread as a stop does:
+the run is ``interrupted`` and Tiếp tục continues it.
 
 The unfinished work of a stopped or crashed video (``partial`` in the state file) is moved
 back from its history folder into ``output/`` when its turn comes, and the video is not
-downloaded again; the pipeline skips the steps whose intermediate files exist. A video `Xong`
-that is selected again starts anew.
+downloaded again; the pipeline skips the steps whose intermediate files exist. So is the work
+of a ``FAILED`` video, on Resume, on ``retry_failed()``, or when a new run of the Playlist selects
+it. A video `Xong` that is selected again starts anew.
 
 While the run runs it holds the lock of ``output/`` (``core.utils.output_lock``), which the
 single video mode and the API respect; the lock goes when the background thread ends, and while
@@ -67,6 +74,7 @@ import json
 import os
 import threading
 import traceback
+from collections import deque
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
@@ -288,10 +296,12 @@ class PlaylistRun:
                     folder = sanitize_filename(f"{video.index} - {video.title} [{video.video_id}]")
                 taken.add(folder)
             status = UNAVAILABLE if not video.available else DONE if done and not selected else WAITING
+            # unfinished work of an earlier run (a `Lỗi` video): it goes on from its history folder
+            partial = selected and not done and bool(earlier.get(video.video_id, {}).get("partial"))
             videos.append(VideoSnapshot(
                 video_id=video.video_id, index=video.index, title=video.title, duration=video.duration,
                 selected=selected, status=status, folder=folder if selected or done else None,
-                url=video.url))
+                url=video.url, partial=partial))
         return cls(url=playlist.url, title=playlist.title, scope=scope, videos=videos,
                    ytdlp=ytdlp or Ytdlp(), plan=plan)
 
@@ -358,6 +368,19 @@ class PlaylistRun:
         """Stop before the next step; the current video is parked in its history folder."""
         self._runner.stop()
 
+    def retry_failed(self):
+        """Chạy lại các video lỗi: each `Lỗi` video runs again from its history folder."""
+        with _lock:
+            if self._runner.is_active:
+                raise PlaylistRunError(RUN_ACTIVE)
+            videos = self.videos
+            self.videos = [replace(v, status=WAITING) if v.selected and v.status == FAILED else v for v in videos]
+        try:
+            self.start()
+        except BaseException:
+            self.videos = videos  # refused: they stay `Lỗi`
+            raise
+
     def end(self):
         """Kết thúc lượt chạy: no more video is processed, history is kept as it is."""
         with _lock:
@@ -411,23 +434,25 @@ class PlaylistRun:
         try:
             output_lock.acquire()  # again: until the thread ran, is_locked() could take it for stale
             failures = 0  # videos failed in a row
-            for position, video in enumerate(self.videos):
-                if video.selected and video.status == WAITING:
-                    TaskRunner.check_cancel()
-                    try:
-                        self._process(position)
-                        failures = 0
-                    except StopTask:
-                        raise
-                    except Exception as error:
-                        self._fail(position, error)
-                        failures += 1
-                        if failures >= FAILURES_TO_PAUSE:
-                            # first: a Resume that follows the pause must find the lock gone
-                            output_lock.release()  # the user may fix the cause in the single video mode
-                            self._runner.pause(FAILED_IN_A_ROW)
-                            TaskRunner.check_cancel()
-        except StopTask:
+            pending = deque(p for p, v in enumerate(self.videos) if v.selected and v.status == WAITING)
+            while pending:
+                position = pending.popleft()
+                TaskRunner.check_cancel()
+                try:
+                    self._process(position)
+                    failures = 0
+                except StopTask:
+                    raise
+                except Exception as error:
+                    self._fail(position, error)
+                    failures += 1
+                    if failures >= FAILURES_TO_PAUSE:
+                        # first: a Resume that follows the pause must find the lock gone
+                        output_lock.release()  # the user may fix the cause in the single video mode
+                        self._runner.pause(FAILED_IN_A_ROW)
+                        TaskRunner.check_cancel()
+                        pending.appendleft(position)  # resumed: the video that just failed runs first
+        except Exception:  # a stop, or an error that is not of one video: the run can be continued
             self._park()
             raise
         else:
@@ -440,8 +465,11 @@ class PlaylistRun:
         """Move the work of the current video into its history folder; it waits for Tiếp tục."""
         for position, video in enumerate(self.videos):
             if video.status == RUNNING:
-                merge_output(self.folder / video.folder)
                 self.videos[position] = replace(video, status=WAITING, partial=True)
+                try:
+                    merge_output(self.folder / video.folder)
+                except OSError:  # left in output/: Tiếp tục asks to empty it first
+                    traceback.print_exc()
         self.current_step = ""
         self._save(RUN_INTERRUPTED)
 

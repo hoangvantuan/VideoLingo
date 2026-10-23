@@ -107,7 +107,8 @@ def test_a_failed_download_is_recorded_with_the_download_step(workspace):
 
 
 def test_two_failures_in_a_row_pause_the_run_with_a_message_until_resume(workspace):
-    run, ytdlp = start(["a1", "c3", "f6"], pipeline=FailingPipeline({"First intro", "Second talk"}))
+    pipeline = FailingPipeline({"First intro", "Second talk"})
+    run, ytdlp = start(["a1", "c3", "f6"], pipeline=pipeline)
 
     snapshot = wait_for(run, "paused")
 
@@ -117,10 +118,11 @@ def test_two_failures_in_a_row_pause_the_run_with_a_message_until_resume(workspa
     assert not run.wait(0.3) and ytdlp.downloads == [watch("a1"), watch("c3")]
     assert not Path("output").exists() or not any(Path("output").iterdir())
 
+    pipeline.fail.clear()  # the cause is fixed; Resume runs the video that just failed first (#19)
     run.resume()
     snapshot = finish(run)
     assert snapshot.state == "completed" and snapshot.pause_message == ""
-    assert statuses(snapshot) == [playlist_run.FAILED, playlist_run.FAILED, playlist_run.DONE]
+    assert statuses(snapshot) == [playlist_run.FAILED, playlist_run.DONE, playlist_run.DONE]
 
 
 def test_a_success_between_two_failures_resets_the_count(workspace):
