@@ -17,24 +17,14 @@ def config(tmp_path, monkeypatch):
         max_workers: 4
         vertex:
     """), encoding="utf-8")
-    (tmp_path / "config.example.yaml").write_text(textwrap.dedent("""
-        vertex:
-          project: ''
-          location_llm: 'global'
-        vertex_tts:
-          max_workers: 4
-    """), encoding="utf-8")
     monkeypatch.setattr(config_utils, "CONFIG_PATH", str(path))
     return path
 
 
-def test_a_missing_key_reads_its_value_from_config_example(config):
-    assert config_fields.current("vertex.location_llm") == "global"
-    assert config_fields.current("vertex_tts.max_workers") == 4
-
-
-def test_a_key_in_neither_file_reads_the_given_fallback(config):
-    assert config_fields.current("vertex.unknown", "x") == "x"
+def test_a_missing_key_reads_the_default_given_in_code(config):
+    assert config_fields.current("vertex.location_llm", "global") == "global"
+    assert config_fields.current("vertex_tts.max_workers", 4) == 4
+    assert config_fields.current("vertex.unknown") is None
 
 
 def test_saving_creates_the_missing_sections_and_keeps_the_rest(config):
@@ -46,9 +36,9 @@ def test_saving_creates_the_missing_sections_and_keeps_the_rest(config):
     assert "# operator comment" in config.read_text(encoding="utf-8")
 
 
-def test_saved_values_win_over_config_example(config):
+def test_saved_values_win_over_the_default(config):
     config_fields.save("vertex.location_llm", "us-central1")
-    assert config_fields.current("vertex.location_llm") == "us-central1"
+    assert config_fields.current("vertex.location_llm", "global") == "us-central1"
 
 
 def test_sidebar_reads_and_writes_race_the_pipeline_without_errors(config):
@@ -65,8 +55,8 @@ def test_sidebar_reads_and_writes_race_the_pipeline_without_errors(config):
             errors.append(error)
 
     actions = [
-        lambda: config_fields.current("vertex.location_llm"),
-        lambda: config_fields.current("vertex_tts.max_workers"),
+        lambda: config_fields.current("vertex.location_llm", "global"),
+        lambda: config_fields.current("vertex_tts.max_workers", 4),
         lambda: config_fields.save("vertex_tts.max_workers", 3),
         lambda: load_key("max_workers"),
         lambda: config_utils.update_key("max_workers", 4),
@@ -79,18 +69,3 @@ def test_sidebar_reads_and_writes_race_the_pipeline_without_errors(config):
     assert errors == []
     assert load_key("max_workers") == 4
 
-
-def test_config_example_is_parsed_once_until_it_changes(config, monkeypatch):
-    calls = []
-    real_load = config_fields._parser.load
-    monkeypatch.setattr(config_fields._parser, "load", lambda stream: calls.append(1) or real_load(stream))
-    config_fields._example_cache.clear()
-    for _ in range(5):
-        assert config_fields.current("vertex.location_llm") == "global"
-    assert len(calls) == 1
-    example = config.parent / "config.example.yaml"
-    example.write_text("vertex:\n  location_llm: 'europe-west4'\n", encoding="utf-8")
-    import os
-    stat = example.stat()
-    os.utime(example, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
-    assert config_fields.current("vertex.location_llm") == "europe-west4"

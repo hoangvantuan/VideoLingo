@@ -26,7 +26,7 @@ from ruamel.yaml.scalarstring import SingleQuotedScalarString  # noqa: E402
 
 from core.utils import config_utils, env_keys  # noqa: E402
 
-# Variable names of the known keys; the same names as .env.example and config.example.yaml.
+# Variable names of the known keys; the same names as .env.example and the tracked config.yaml.
 STANDARD_VARS = {
     "api.key": "LLM_API_KEY",
     "whisper.elevenlabs_api_key": "ELEVENLABS_API_KEY",

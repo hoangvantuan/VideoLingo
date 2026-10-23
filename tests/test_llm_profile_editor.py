@@ -213,7 +213,7 @@ def test_the_fallback_key_is_a_password_field_and_never_shown_as_text(config):
 
 def test_vertex_project_and_location_are_written_to_a_config_without_a_vertex_section(config):
     at = opened()
-    assert field(at, "Vertex location (Khâu Dịch)").value == "global"  # default of config.example.yaml
+    assert field(at, "Vertex location (Khâu Dịch)").value == "global"  # default of the tracked config.yaml
     fill(at, **{"Vertex project": "my-project"}).run()
     at = fill(at, **{"Vertex location (Khâu Dịch)": "us-central1"}).run()
     assert not at.exception

@@ -1,6 +1,5 @@
 """Every F7-F10 key set from the whole sidebar on a config.yaml older than those keys (custom fork, #11)."""
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -12,7 +11,7 @@ from core.utils import config_utils
 from core.utils.config_utils import load_key, load_key_or
 from core.utils.original_audio import original_volume
 
-EXAMPLE = Path(__file__).resolve().parents[1] / "config.example.yaml"
+TRACKED = Path(__file__).resolve().parents[1] / "config.yaml"
 NEW_KEYS = ["llm_profiles", "vertex", "vertex_tts", "original_volume"]
 
 
@@ -24,9 +23,8 @@ def _sidebar():
 
 @pytest.fixture
 def old_config(tmp_path, monkeypatch):
-    """config.example.yaml (placeholders only) without the F7-F10 keys, with the example beside it as in the repo."""
-    shutil.copy(EXAMPLE, tmp_path / "config.example.yaml")
-    with open(EXAMPLE, encoding="utf-8") as file:
+    """The tracked config.yaml (no real key) without the F7-F10 keys."""
+    with open(TRACKED, encoding="utf-8") as file:
         data = config_utils.yaml.load(file)
     for key in NEW_KEYS:
         del data[key]

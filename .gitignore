@@ -175,5 +175,7 @@ logs/
 videolingo_*.log
 .tools/
 
-# Local config with credentials; config.example.yaml is the tracked template
-config.yaml
+# Keys live in .env; config.yaml is tracked and holds ${VAR} references only (custom env, #22)
+.env.*
+!.env.example
+vertex-sa.json

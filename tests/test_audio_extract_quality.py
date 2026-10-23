@@ -188,5 +188,5 @@ def test_optional_config_key_falls_back_without_error():
 
 def test_shipped_config_restores_v2_extraction_defaults():
     yaml = pytest.importorskip('yaml')
-    config = yaml.safe_load((ROOT / 'config.example.yaml').read_text(encoding='utf-8'))  # custom: config.yaml is untracked
+    config = yaml.safe_load((ROOT / 'config.yaml').read_text(encoding='utf-8'))
     assert config['audio'] == {'raw_sample_rate': 32000, 'raw_bitrate': '128k'}
