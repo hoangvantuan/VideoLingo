@@ -88,8 +88,10 @@ def test_the_soniox_asr_key_is_masked_and_saved(old_config):
 
     config_utils.update_key("whisper.runtime", "soniox")
     at = AppTest.from_function(_sidebar).run(timeout=30)
-    key = widget(at, "text_input", "Soniox API")
-    assert key.proto.type == TextInput.PASSWORD
-    at = key.input("placeholder-key").run(timeout=30)
-    assert not at.exception
-    assert load_key("whisper.soniox_api_key") == "placeholder-key"
+    assert widget(at, "text_input", "Soniox API").proto.type == TextInput.PASSWORD
+    for value in ["placeholder-key", "other-placeholder"]:  # two edits in a row: the id must not change on save
+        before = widget(at, "text_input", "Soniox API").id
+        at = widget(at, "text_input", "Soniox API").input(value).run(timeout=30)
+        assert not at.exception
+        assert load_key("whisper.soniox_api_key") == value
+        assert widget(at, "text_input", "Soniox API").id == before
