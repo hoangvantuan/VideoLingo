@@ -485,7 +485,7 @@ def _unfinished_state_file() -> Path | None:
             state = json.loads(path.read_text(encoding="utf-8")).get("state")
         except (OSError, ValueError):
             continue
-        if state != RUN_FINISHED:
+        if state in (RUN_RUNNING, RUN_INTERRUPTED):
             found.append(path)
     return max(found, key=lambda p: p.stat().st_mtime, default=None)
 

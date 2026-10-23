@@ -57,6 +57,9 @@ def test_a_failed_video_keeps_its_work_in_history_and_the_run_goes_on(workspace)
     earlier = ROOT / "3 - Second talk" / "notes.txt"
     earlier.parent.mkdir(parents=True)
     earlier.write_text("kept")
+    # The folder is the video's own from an earlier run (#17): a folder no state file claims is not reused
+    (ROOT / "playlist_run.json").write_text(json.dumps({"videos": [
+        {"video_id": "c3", "status": playlist_run.FAILED, "folder": "3 - Second talk"}]}), encoding="utf-8")
     ytdlp = OutputCheckingYtdlp({URL: PLAYLIST})
 
     run, _ytdlp = start(["a1", "c3", "f6"], pipeline=FailingPipeline({"Second talk"}), ytdlp=ytdlp)
