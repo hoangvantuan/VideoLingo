@@ -82,6 +82,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import traceback
 from collections import deque
@@ -553,8 +554,13 @@ class PlaylistRun:
 
 
 def _short(error):
-    """The first line of the error message, or the name of the error when it has none."""
-    lines = [line.strip() for line in str(error).splitlines() if line.strip()]
+    """The first line of the error message, or the name of the error when it has none.
+
+    Lines are split on ``\n`` only: yt-dlp puts a ``\r`` after its ``ERROR:`` prefix. A line that
+    is a bare prefix such as ``ERROR:`` is skipped.
+    """
+    lines = (" ".join(line.split()) for line in str(error).split("\n"))
+    lines = [line for line in lines if line and not re.fullmatch(r"\w+:", line)]
     return lines[0][:ERROR_LENGTH] if lines else type(error).__name__
 
 

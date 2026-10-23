@@ -124,6 +124,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `translations/*.json` (#18) | 1 key thông báo khoá chế độ 1 video, đủ 7 ngôn ngữ | 1 × 7 |
 | `translations/*.json` (#19) | 1 key nút "Chạy lại các video lỗi" (`Retry failed videos`), đủ 7 ngôn ngữ | 1 × 7 |
 | `core/task_runner.py` (review #13) | `check()`: như `check_cancel()` nhưng trên chính runner đó, không qua `TaskRunner._current` (luồng Lượt chạy playlist dùng) | 4 |
+| `core/_1_ytdlp.py` (QA #13, #18) | vòng đổi tên sau khi tải bỏ qua file bắt đầu bằng dấu chấm: `sanitize_filename` bỏ dấu chấm đầu nên từng đổi `output/.playlist_run.lock` thành `playlist_run.lock` (mất khoá, Resume bị từ chối, file khoá rác vào history) | 2 |
 
 ## Cấu hình F1 (Soniox)
 
