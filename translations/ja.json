@@ -257,5 +257,8 @@
     "Download video": "動画をダウンロード",
     "Save to 'history'": "'history' に保存",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` に別の動画のファイルがあります。単一の動画モードで 'history' にアーカイブするか削除してから、プレイリストを開始してください。",
-    "A playlist run is already active.": "プレイリストの実行がすでに進行中です。"
+    "A playlist run is already active.": "プレイリストの実行がすでに進行中です。",
+    "Failed step": "失敗したステップ",
+    "Error": "エラー",
+    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "2 本の動画が続けて失敗したため、プレイリストの実行を一時停止しました。多くはシステムのエラー（クォータ、API キー、ネットワーク、Cookie）です。原因を直してから再開してください。"
 }

@@ -52,6 +52,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/playlist_run.py` | #14 — Lượt chạy playlist (ADR-0002): đọc Playlist bằng yt-dlp chế độ flat (`read_playlist`), `PlaylistRun` (`create`, `start`, `pause`, `resume`, `wait`, `snapshot`), lượt chạy chung của tiến trình (`current_run()`), file trạng thái `history/<playlist>/playlist_run.json`. Adapter `ytdlp` và `plan` thay được khi test |
 | `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
+| `core/playlist_run.py`, `core/st_utils/playlist_tab.py` | #15 — video lỗi không chặn lượt chạy: video `Lỗi` kèm bước hỏng và lỗi ngắn (snapshot, file trạng thái, cột trên tab), phần dở chuyển vào history của video rồi chạy tiếp; 2 video lỗi liên tiếp thì tự pause với `FAILED_IN_A_ROW` |
+| `tests/test_playlist_failures.py` | Test #15: pipeline giả ném lỗi ở bước chỉ định: một video lỗi rồi chạy tiếp, lỗi khi tải, 2 lỗi liên tiếp tự pause, video thành công xen giữa đặt lại bộ đếm |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -105,6 +107,8 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `st.py` (#14) | import `playlist_tab`; `main()` chia hai tab "Single video" (luồng a→b→c cũ, thụt lề vào `with`) và "Playlist" (`playlist_tab.render()`) | 1 + 9 |
 | `tests/test_ui_translations.py` (#14) | `DYNAMIC_T_ARGS` thêm `core/st_utils/playlist_tab.py` (`snapshot.current_step`, `message`; key được kiểm trong `tests/test_playlist_run.py`) | 1 |
 | `translations/*.json` (#14) | 26 key của tab Playlist và Lượt chạy playlist, đủ 7 ngôn ngữ | 26 × 7 |
+| `tests/test_ui_translations.py` (#15) | `DYNAMIC_T_ARGS` của `playlist_tab.py` thêm `snapshot.pause_message`, `v.failed_step` (key được kiểm trong `tests/test_playlist_failures.py`, `tests/test_playlist_run.py`) | 1 |
+| `translations/*.json` (#15) | 3 key của video lỗi (`Failed step`, `Error`, `FAILED_IN_A_ROW`), đủ 7 ngôn ngữ | 3 × 7 |
 
 ## Cấu hình F1 (Soniox)
 
