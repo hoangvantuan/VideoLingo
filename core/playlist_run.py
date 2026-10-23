@@ -7,10 +7,12 @@ Public interface
 - ``read_playlist(url, ytdlp=None) -> Playlist``: the Playlist of a playlist or channel URL,
   read by yt-dlp in flat mode (no download). Each ``PlaylistVideo`` has its video ID, index
   (1-based, in the order of the Playlist), title, duration in seconds (or None) and whether it
-  is available (private, deleted and members-only videos are not).
+  is available (private, deleted and members-only videos are not). A video `Xong` in an earlier
+  run of the same Playlist, matched by its video ID in the state file, has ``done`` set.
 - ``PlaylistRun.create(playlist, selected_ids, scope, ytdlp=None, plan=None)``: a Lượt chạy
   playlist of the selected available videos. ``scope`` is ``SUBTITLES`` (subtitles only) or
-  ``DUBBING`` (subtitles and dubbing).
+  ``DUBBING`` (subtitles and dubbing). A video known to an earlier run keeps its history folder,
+  and a video `Xong` that is not selected stays `Xong` in the state file.
 - ``run.start()`` makes the run the one of the process (``current_run()``) and processes the
   videos in a background thread. It raises ``PlaylistRunError`` when ``output/`` is not empty or
   another run is active. ``run.pause()``, ``run.resume()``, ``run.wait(timeout)``.
@@ -21,7 +23,7 @@ Public interface
 For each video: download it into ``output/`` → run the steps of the pipeline → move all of
 ``output/`` (with ``log/`` and ``gpt_log/``) into ``history/<playlist>/<index> - <title>/``.
 Folder names are cleaned as the history save does (``onekeycleanup.sanitize_filename``), the
-index is not padded. The review checkpoints of the pipeline do not pause during a run.
+index is not padded; a name already used by another video gets the video ID appended. The review checkpoints of the pipeline do not pause during a run.
 
 The state file ``history/<playlist>/playlist_run.json`` holds the URL, title, scope, the run
 state (``running`` or ``finished``) and every video with its status and folder. It is written
@@ -81,6 +83,7 @@ class PlaylistVideo:
     duration: float | None
     available: bool
     url: str
+    done: bool = False  # `Xong` in an earlier run of this Playlist
 
 
 @dataclass(frozen=True)
@@ -151,7 +154,19 @@ def read_playlist(url, ytdlp=None) -> Playlist:
             available=available,
             url=item.get("url") or item.get("webpage_url") or f"https://www.youtube.com/watch?v={item['id']}",
         ))
-    return Playlist(url=url, title=info.get("title") or info.get("id") or "playlist", videos=tuple(videos))
+    title = info.get("title") or info.get("id") or "playlist"
+    earlier = _earlier_videos(title)
+    videos = [replace(v, done=earlier.get(v.video_id, {}).get("status") == DONE) for v in videos]
+    return Playlist(url=url, title=title, videos=tuple(videos))
+
+
+def _earlier_videos(title) -> dict:
+    """The videos of the state file of an earlier run of the Playlist, by video ID; {} without one."""
+    try:
+        data = json.loads((HISTORY / sanitize_filename(title) / STATE_FILE).read_text(encoding="utf-8"))
+        return {v["video_id"]: v for v in data["videos"]}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
 
 
 @dataclass(frozen=True)
@@ -214,13 +229,25 @@ class PlaylistRun:
         if scope not in (SUBTITLES, DUBBING):
             raise ValueError(f"Unknown scope: {scope}")
         selected_ids = set(selected_ids)
+        root = HISTORY / sanitize_filename(playlist.title)
+        earlier = _earlier_videos(playlist.title)
+        # Folders of other videos: of an earlier run, or on disk from a video that left the Playlist
+        taken = {v.get("folder") for v in earlier.values()} | (
+            {p.name for p in root.iterdir()} if root.is_dir() else set())
         videos = []
         for video in playlist.videos:
             selected = video.available and video.video_id in selected_ids
-            folder = sanitize_filename(f"{video.index} - {video.title}") if selected else None
+            done = video.available and earlier.get(video.video_id, {}).get("status") == DONE
+            folder = earlier.get(video.video_id, {}).get("folder")
+            if folder is None and selected:
+                folder = sanitize_filename(f"{video.index} - {video.title}")
+                if folder in taken:
+                    folder = sanitize_filename(f"{video.index} - {video.title} [{video.video_id}]")
+                taken.add(folder)
+            status = UNAVAILABLE if not video.available else DONE if done and not selected else WAITING
             videos.append(VideoSnapshot(
                 video_id=video.video_id, index=video.index, title=video.title, duration=video.duration,
-                selected=selected, status=WAITING if video.available else UNAVAILABLE, folder=folder,
+                selected=selected, status=status, folder=folder if selected or done else None,
                 url=video.url))
         return cls(url=playlist.url, title=playlist.title, scope=scope, videos=videos,
                    ytdlp=ytdlp or Ytdlp(), plan=plan)

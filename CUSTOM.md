@@ -52,6 +52,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/playlist_run.py` | #14 — Lượt chạy playlist (ADR-0002): đọc Playlist bằng yt-dlp chế độ flat (`read_playlist`), `PlaylistRun` (`create`, `start`, `pause`, `resume`, `wait`, `snapshot`), lượt chạy chung của tiến trình (`current_run()`), file trạng thái `history/<playlist>/playlist_run.json`. Adapter `ytdlp` và `plan` thay được khi test |
 | `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
+| `tests/test_playlist_rerun.py` | Test #17: đọc lại Playlist đã chạy thì video `Xong` (theo video ID trong file trạng thái) được đánh dấu `done` và bỏ chọn sẵn trên tab; video `Xong` được tick lại thì làm lại vào đúng thư mục cũ; video mới không lấy trùng thư mục của video khác |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
