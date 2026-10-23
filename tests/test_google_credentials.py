@@ -85,6 +85,30 @@ class GoogleCredentialTests(unittest.TestCase):
                                         "GOOGLE_APPLICATION_CREDENTIALS.*Setup Google Cloud"):
                 google_credentials.access_token()
 
+    def test_a_missing_credential_is_not_probed_again_for_a_short_time(self):
+        import google.auth.exceptions
+        missing = google.auth.exceptions.DefaultCredentialsError("none")
+        with patch("google.auth.default", side_effect=missing) as default, \
+                patch.object(google_credentials.time, "monotonic", return_value=100.0) as clock:
+            for _ in range(3):
+                with self.assertRaisesRegex(google_credentials.GoogleCredentialError, "Setup Google Cloud"):
+                    google_credentials.access_token()
+            self.assertEqual(default.call_count, 1)
+            clock.return_value = 100.0 + google_credentials.MISSING_RETRY_SECONDS + 1
+            default.side_effect = None
+            default.return_value = (FakeCredential(valid=True), "p")
+            self.assertEqual(google_credentials.access_token(), "token-0")
+            self.assertEqual(default.call_count, 2)
+
+    def test_reset_forgets_a_missing_credential(self):
+        import google.auth.exceptions
+        with patch("google.auth.default", side_effect=google.auth.exceptions.DefaultCredentialsError("none")):
+            with self.assertRaises(google_credentials.GoogleCredentialError):
+                google_credentials.access_token()
+        google_credentials.reset()
+        with patch("google.auth.default", return_value=(FakeCredential(valid=True), "p")):
+            self.assertEqual(google_credentials.access_token(), "token-0")
+
     def test_failed_refresh_is_reported_clearly(self):
         import google.auth.exceptions
 

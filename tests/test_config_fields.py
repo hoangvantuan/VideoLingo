@@ -49,3 +49,48 @@ def test_saving_creates_the_missing_sections_and_keeps_the_rest(config):
 def test_saved_values_win_over_config_example(config):
     config_fields.save("vertex.location_llm", "us-central1")
     assert config_fields.current("vertex.location_llm") == "us-central1"
+
+
+def test_sidebar_reads_and_writes_race_the_pipeline_without_errors(config):
+    """BUG-0: sidebar reruns call current()/save() while the pipeline thread uses load_key/update_key."""
+    import threading
+
+    errors = []
+
+    def hammer(action):
+        try:
+            for _ in range(150):
+                action()
+        except Exception as error:  # noqa: BLE001 - any parser error is the bug
+            errors.append(error)
+
+    actions = [
+        lambda: config_fields.current("vertex.location_llm"),
+        lambda: config_fields.current("vertex_tts.max_workers"),
+        lambda: config_fields.save("vertex_tts.max_workers", 3),
+        lambda: load_key("max_workers"),
+        lambda: config_utils.update_key("max_workers", 4),
+    ]
+    threads = [threading.Thread(target=hammer, args=(action,)) for action in actions * 2]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    assert errors == []
+    assert load_key("max_workers") == 4
+
+
+def test_config_example_is_parsed_once_until_it_changes(config, monkeypatch):
+    calls = []
+    real_load = config_fields._parser.load
+    monkeypatch.setattr(config_fields._parser, "load", lambda stream: calls.append(1) or real_load(stream))
+    config_fields._example_cache.clear()
+    for _ in range(5):
+        assert config_fields.current("vertex.location_llm") == "global"
+    assert len(calls) == 1
+    example = config.parent / "config.example.yaml"
+    example.write_text("vertex:\n  location_llm: 'europe-west4'\n", encoding="utf-8")
+    import os
+    stat = example.stat()
+    os.utime(example, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+    assert config_fields.current("vertex.location_llm") == "europe-west4"

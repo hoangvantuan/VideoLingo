@@ -226,7 +226,7 @@ vertex_tts:
 - Header `x-goog-user-project` = `vertex.project` (hoặc project của credential), nên service account cần role `serviceusage.serviceUsageConsumer`.
 - Lỗi API (quota 429, giọng sai 400, credential 401/403) báo `HTTP <mã> <thông điệp>` và không tự thử lại trong backend: vòng thử lại 3 lần của `tts_main` xử lý. Lỗi 401/403 và thiếu credential/project chỉ tới mục "Setup Google Cloud".
 - Quota Chirp 3 HD: 200 request/phút/project, tối đa 5.000 byte mỗi request; 4 luồng là dư.
-- Credential dùng chung (`core/utils/google_credentials.py`): Application Default Credentials, scope `cloud-platform`, token được làm mới khi hết hạn, có khóa cho nhiều luồng. Đổi `GOOGLE_APPLICATION_CREDENTIALS` thì khởi động lại VideoLingo.
+- Credential dùng chung (`core/utils/google_credentials.py`): Application Default Credentials, scope `cloud-platform`, token được làm mới khi hết hạn, có khóa cho nhiều luồng. Không tìm thấy credential thì kết quả lỗi được nhớ 30 giây (`MISSING_RETRY_SECONDS`) để sidebar không dò lại mỗi lần chạy lại. Đổi `GOOGLE_APPLICATION_CREDENTIALS` thì khởi động lại VideoLingo.
 
 ## Cấu hình trên giao diện (F7–F10)
 
@@ -245,7 +245,7 @@ Mọi khóa mới của F7–F10 đặt được trên sidebar, kể cả khi `c
 - **Đổi tên** profile đang dùng thì `api.profile` đổi theo. **Xóa** profile đang dùng thì `api.profile` về `''` (Profile custom).
 - Sửa profile giữ nguyên thứ tự và comment của các profile khác trong `config.yaml`. Key không bao giờ được in ra màn hình hay log.
 - Ví dụ dùng Vertex với `config.yaml` cũ: mở **Quản lý LLM profile & Vertex AI**, thêm profile `gemini-lite` (Provider `vertex`, model `google/gemini-3.5-flash-lite`), điền **Vertex project**, chọn `gemini-lite` ở **Profile đang dùng**; ở Dubbing Settings chọn Vertex AI, giọng, số luồng và Âm lượng gốc.
-- Ô cấu hình mới của fork dùng `core/st_utils/config_fields.py`: `current(key)` (config.yaml → config.example.yaml → giá trị dự phòng) và `save(key, value)` (tạo khóa và mục cha còn thiếu).
+- Ô cấu hình mới của fork dùng `core/st_utils/config_fields.py`: `current(key)` (config.yaml → config.example.yaml → giá trị dự phòng) và `save(key, value)` (tạo khóa và mục cha còn thiếu). `config.example.yaml` được đọc bằng parser riêng (không dùng `config_utils.yaml` chung với luồng pipeline) và chỉ đọc lại khi file đổi.
 - Nhãn là chữ cố định, không qua `t()`.
 
 ## Đối chiếu khóa ↔ giao diện (#12)
