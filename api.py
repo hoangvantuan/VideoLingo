@@ -50,6 +50,9 @@ class RunRequest(BaseModel):
 def require_idle():
     if runner.is_active:
         raise HTTPException(409, "An operation is active; wait for /status before continuing.")
+    from core.utils.output_lock import is_locked  # custom: playlist #18, a stale lock is removed
+    if is_locked():  # custom
+        raise HTTPException(409, "A playlist run is using output/; wait until it is no longer running.")  # custom
 
 
 def archive_output():

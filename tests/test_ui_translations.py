@@ -33,6 +33,7 @@ DYNAMIC_T_ARGS = {
     "st.py": {"runner.current_label", "runner.pause_message"},
     "core/st_utils/download_video_section.py": {"text"},
     "core/st_utils/tts_settings.py": {"name"},
+    "core/st_utils/playlist_tab.py": {"snapshot.current_step", "message", "snapshot.pause_message", "v.failed_step"},  # custom: playlist, tests/test_playlist_run.py
 }
 
 

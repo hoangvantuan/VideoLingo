@@ -68,6 +68,8 @@ def download_video_ytdlp(url, save_path='output', resolution='1080'):
     
     # Check and rename files after download
     for file in os.listdir(save_path):
+        if file.startswith('.'):  # custom: keep dotfiles as they are, such as the lock of a playlist run (#18)
+            continue  # custom
         if os.path.isfile(os.path.join(save_path, file)):
             filename, ext = os.path.splitext(file)
             new_filename = sanitize_filename(filename)

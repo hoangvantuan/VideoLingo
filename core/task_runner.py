@@ -58,6 +58,11 @@ class TaskRunner:
         if runner._stop_event.is_set():
             raise StopTask()
 
+    def check(self) -> None:  # custom: playlist, as check_cancel() on this runner, not on TaskRunner._current
+        self._pause_event.wait()  # custom
+        if self._stop_event.is_set():  # custom
+            raise StopTask()  # custom
+
     # ------ Control API ------
 
     def start(self, steps: list[tuple[str, Callable]]):
