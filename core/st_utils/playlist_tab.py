@@ -82,8 +82,10 @@ def _start_form(playlist):
             label += f" ({_duration(video.duration)})"
         if not video.available:
             label += f" — {labels[playlist_run.UNAVAILABLE]}"
-        if st.checkbox(label, value=video.available, disabled=not video.available,
-                       key=f"playlist_pick_{playlist.url}_{video.video_id}") and video.available:
+        elif video.done:  # done in an earlier run: not selected, can be selected again
+            label += f" — {labels[playlist_run.DONE]}"
+        if st.checkbox(label, value=video.available and not video.done, disabled=not video.available,
+                       key=f"playlist_pick_{playlist.url}_{video.video_id}_{video.done}") and video.available:
             selected.append(video.video_id)
     scope = st.radio(
         t("Processing scope"), [playlist_run.SUBTITLES, playlist_run.DUBBING], horizontal=True,
