@@ -57,6 +57,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/_3_2_split_meaning.py` | F7 — import + số luồng chia câu theo nghĩa lấy từ `llm_max_workers()` | 2 |
 | `core/_4_2_translate.py` | F7 — import + số luồng dịch lấy từ `llm_max_workers()` | 2 |
 | `core/_5_split_sub.py` | F7 — import + số luồng chia phụ đề (2 chỗ) lấy từ `llm_max_workers()` | 3 |
+| `tests/test_dependencies.py`, `tests/test_audio_extract_quality.py`, `tests/test_language_support.py` | `config.yaml` không còn được track: test upstream đọc `config.example.yaml` thay cho `config.yaml` thật | 2 + 1 + 1 |
 | `tests/test_backlog_fixes.py` | F7 — `_check_api` patch thêm `load_key`/`load_key_or` của `llm_profile`; test chia phụ đề patch `llm_max_workers` | 2 + 2 |
 | `config.example.yaml` (F7) | khóa `api.profile`; mục `llm_profiles:` mẫu (cả `base_url` dạng comment) | 2 + 16 |
 | `config.example.yaml` (F8) | profile `gemini-lite`, `gemini-flash` trong `llm_profiles:` | 13 |
