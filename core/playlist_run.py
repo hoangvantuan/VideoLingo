@@ -474,9 +474,8 @@ class PlaylistRun:
         Also makes it ``TaskRunner._current`` again for the ``check_cancel()`` inside the steps: a
         single video run during the auto-pause sets it to its own runner, then to None.
         """
-        TaskRunner._current = self._runner
         self._runner.check()
-        TaskRunner._current = self._runner
+        TaskRunner._current = self._runner  # after the pause: a single video run may be using it until then
 
     def _process_all(self, positions, final_state):
         try:
