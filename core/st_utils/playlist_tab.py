@@ -46,7 +46,10 @@ def _run_panel():
         icon = "⏸️" if snapshot.state == "paused" else "⏳"
         st.info(f"{icon} {video.index}. {video.title} — {step}")
     if snapshot.state == "paused":
-        st.warning(f"⏸️ {t('Paused')}")
+        if snapshot.pause_message:
+            st.error(f"⏸️ {t(snapshot.pause_message)}")
+        else:
+            st.warning(f"⏸️ {t('Paused')}")
         col1, col2 = st.columns(2)
         if col1.button(f"▶️ {t('Resume')}", key="playlist_resume", width="stretch"):
             run.resume()
@@ -94,7 +97,9 @@ def _run_panel():
     labels = _status_labels()
     st.dataframe(
         [{"#": v.index, t("Title"): v.title, t("Duration"): _duration(v.duration),
-          t("Status"): labels[v.status], t("History folder"): v.folder if v.status == playlist_run.DONE else ""}
+          t("Status"): labels[v.status], t("History folder"): v.folder if v.status == playlist_run.DONE else "",
+          t("Failed step"): t(v.failed_step) if v.status == playlist_run.FAILED and v.failed_step else "",
+          t("Error"): v.error if v.status == playlist_run.FAILED else ""}
          for v in snapshot.videos if v.selected],
         hide_index=True, width="stretch")
 

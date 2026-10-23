@@ -25,12 +25,20 @@ Public interface
   run by itself. ``run.end()`` (Kết thúc lượt chạy) marks it finished and keeps history.
 - ``run.snapshot() -> RunSnapshot``: state of the run, progress ``done/total``, the video being
   processed and its current step, the pause message, and for each video its Trạng thái video
-  (``WAITING``, ``RUNNING``, ``DONE``, ``FAILED``, ``UNAVAILABLE``) and history folder.
+  (``WAITING``, ``RUNNING``, ``DONE``, ``FAILED``, ``UNAVAILABLE``), history folder, and for a
+  ``FAILED`` video the step that failed and a short error message.
 
 For each video: download it into ``output/`` → run the steps of the pipeline → move all of
 ``output/`` (with ``log/`` and ``gpt_log/``) into ``history/<playlist>/<index> - <title>/``.
 Folder names are cleaned as the history save does (``onekeycleanup.sanitize_filename``), the
 index is not padded; a name already used by another video gets the video ID appended. The review checkpoints of the pipeline do not pause during a run.
+
+A video that fails (download, a step of the pipeline or the save) is ``FAILED`` with its step
+and error; its unfinished work, with ``log/`` and ``gpt_log/``, is moved into its history folder
+without deleting what the folder holds, and the run goes on with the next video. When
+``FAILURES_TO_PAUSE`` videos fail in a row the run pauses itself with ``FAILED_IN_A_ROW``: that is
+most often a system error (quota, API key, network, cookies). A video done in between resets
+the count.
 
 The state file ``history/<playlist>/playlist_run.json`` holds the URL, title, scope, the run
 state (``running``, ``interrupted`` once stopped, or ``finished``) and every video with its
@@ -54,6 +62,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import traceback
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Callable
@@ -90,6 +99,11 @@ RUN_UNFINISHED = "A playlist run is unfinished. Continue it or end it first."
 RUN_RUNNING = "running"
 RUN_INTERRUPTED = "interrupted"
 RUN_FINISHED = "finished"
+
+FAILED_IN_A_ROW = ("2 videos failed in a row, so the playlist run paused. This is often a system error "
+                   "(quota, API key, network or cookies): fix it, then resume.")
+FAILURES_TO_PAUSE = 2
+ERROR_LENGTH = 300  # characters of the error message kept for a failed video
 
 # Private, deleted and members-only videos as yt-dlp lists them in flat mode
 UNAVAILABLE_TITLES = {"[Private video]", "[Deleted video]"}
@@ -369,18 +383,29 @@ class PlaylistRun:
         temporary.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temporary, self.folder / STATE_FILE)
 
-    def _set_status(self, position, status):
-        self.videos[position] = replace(self.videos[position], status=status)
+    def _set_status(self, position, status, **fields):
+        self.videos[position] = replace(self.videos[position], status=status, **fields)
         self._save(RUN_RUNNING)
 
     # ------ Background thread ------
 
     def _process_all(self):
+        failures = 0  # videos failed in a row
         try:
             for position, video in enumerate(self.videos):
                 if video.selected and video.status == WAITING:
                     TaskRunner.check_cancel()
-                    self._process(position)
+                    try:
+                        self._process(position)
+                        failures = 0
+                    except StopTask:
+                        raise
+                    except Exception as error:
+                        self._fail(position, error)
+                        failures += 1
+                        if failures >= FAILURES_TO_PAUSE:
+                            self._runner.pause(FAILED_IN_A_ROW)
+                            TaskRunner.check_cancel()
         except StopTask:
             self._park()
             raise
@@ -398,7 +423,7 @@ class PlaylistRun:
 
     def _process(self, position):
         video = self.videos[position]
-        self._set_status(position, RUNNING)
+        self._set_status(position, RUNNING, failed_step="", error="")
         self.current_step = DOWNLOAD_STEP
         if video.partial:  # work of a stopped or crashed video; a video done before starts anew
             merge_output(OUTPUT, source=self.folder / video.folder)
@@ -416,6 +441,22 @@ class PlaylistRun:
         if OUTPUT.exists() and any(OUTPUT.iterdir()):
             raise RuntimeError(f"Some files of output/ could not be moved to {self.folder / video.folder}")
         self._set_status(position, DONE)
+
+    def _fail(self, position, error):
+        """Mark the video ``FAILED`` and move its unfinished work into its history folder."""
+        traceback.print_exception(error)
+        step, self.current_step = self.current_step, ""
+        destination = self.folder / self.videos[position].folder
+        cleanup(destination=str(destination))
+        self._set_status(position, FAILED, failed_step=step, error=_short(error), partial=True)
+        if OUTPUT.exists() and any(OUTPUT.iterdir()):
+            raise RuntimeError(f"Some files of output/ could not be moved to {destination}")
+
+
+def _short(error):
+    """The first line of the error message, or the name of the error when it has none."""
+    lines = [line.strip() for line in str(error).splitlines() if line.strip()]
+    return lines[0][:ERROR_LENGTH] if lines else type(error).__name__
 
 
 _lock = threading.Lock()
