@@ -7,16 +7,16 @@
 
 ## ======================== Basic Settings ======================== ##
 
-display_language: "zh-CN"
+display_language: "ja"
 
 # API settings
 api:
   # *Custom (F7): active LLM profile, a name from llm_profiles; '' = the custom profile (this api: section)
-  profile: ''
-  key: '${LLM_API_KEY:-}'  # custom: #21, keys live in .env, see .env.example and CUSTOM.md "Key trong .env"
-  base_url: 'https://api.openlux.ai/v1'
-  model: 'gpt-6-luna'
-  llm_support_json: false
+  profile: 'gemini-lite'
+  key: '${LLM_API_KEY}'    # custom: #21, keys live in .env, see .env.example and CUSTOM.md "Key trong .env"
+  base_url: 'https://openrouter.ai/api/v1'
+  model: 'deepseek/deepseek-v4.1-flash-1017'
+  llm_support_json: true
 # *Number of LLM multi-threaded accesses, set to 1 if using local LLM
 max_workers: 4
 # *Custom (F7): named LLM profiles for the Translate stage, chosen by api.profile. See CUSTOM.md "Cấu hình F7".
@@ -49,10 +49,10 @@ llm_profiles:
     # *Caps thinking tokens, billed as output
     reasoning_effort: low
 # *Custom: cap on parallel TTS requests (0 = same as max_workers). VieNeu-TTS serves 1 stream.
-tts_max_workers: 0
+tts_max_workers: 1
 
 # Language settings, written into the prompt, can be described in natural language
-target_language: '简体中文'
+target_language: 'Tiếng Việt'
 
 # Whether to use Demucs for vocal separation before transcription
 demucs: false
@@ -62,7 +62,7 @@ whisper:
   language: 'en'
   detected_language: 'en'
   # Recognition runtime: "local" (default), "elevenlabs", "mai" (MAI-Transcribe-2) or "soniox" (custom).
-  runtime: 'local'
+  runtime: 'soniox'
   # Local ASR backend: "qwen" (default: Qwen3-ASR + Qwen3-ForcedAligner-0.6B) or "whisperx".
   # whisperx is not installed by the installer. Install its packages yourself from
   # docs/pages/docs/whisperx-manual.en-US.md, then set backend to whisperx.
@@ -77,15 +77,15 @@ whisper:
   # ElevenLabs API key (experimental)
   elevenlabs_api_key: '${ELEVENLABS_API_KEY:-}'  # custom: #21
   # Soniox API key (custom). The SONIOX_API_KEY environment variable takes precedence.
-  soniox_api_key: '${SONIOX_API_KEY:-}'  # custom: #21
+  soniox_api_key: '${SONIOX_API_KEY}'    # custom: #21
   # Azure Speech key and region for optional MAI-Transcribe-2. Leave the region
   # empty to detect it from the key, or enter a region/resource endpoint in the UI.
-  mai_api_key: '${AZURE_SPEECH_KEY:-}'  # custom: #21
+  mai_api_key: ''                       # custom: #21
   mai_region: ''
   # MAI provider: "azure" (default for existing MAI users) or "openrouter".
   mai_provider: 'azure'
   # OpenRouter API key for optional MAI-Transcribe-2 via OpenRouter.
-  mai_openrouter_api_key: '${OPENROUTER_API_KEY:-}'  # custom: #21
+  mai_openrouter_api_key: ''                         # custom: #21
 
 # Whether to burn subtitles into the video
 burn_subtitles: true
@@ -108,7 +108,7 @@ subtitle:
   target_multiplier: 1.2
   # *Subtitles burned into the subtitle video and into the dubbed video [bilingual, translation, source]
   sub_video_subtitles: 'bilingual'
-  dub_video_subtitles: 'translation'
+  dub_video_subtitles: 'bilingual'
   # *Style of the burned-in subtitles. Colors are &HBBGGRR, &HAABBGGRR (AA is the transparency) or #RRGGBB. An empty font_name uses the default font of the system
   style:
     source:
@@ -147,7 +147,7 @@ pause_after_translate: false
 ## ======================== Dubbing Settings ======================== ##
 # TTS selection [edge_tts, openai_tts, fish_audio, f5tts, sf_fish_tts, sf_cosyvoice2, gpt_sovits, custom_tts]
 # *Custom: also soniox_tts, vertex_tts
-tts_method: 'edge_tts'
+tts_method: 'vertex_tts'
 # *Custom F10: Thuyết minh — Âm lượng gốc, level (0–1) of the video's own audio kept under the dubbed voice.
 # > 0 replaces the Demucs background track; 0 keeps the upstream merge.
 original_volume: 0.25
@@ -155,7 +155,7 @@ original_volume: 0.25
 # SiliconFlow FishTTS
 sf_fish_tts:
   # SiliconFlow API key
-  api_key: '${SILICONFLOW_API_KEY:-}'  # custom: #21
+  api_key: 'YOUR_API_KEY'              # custom: #21
   # only for mode "preset"
   voice: 'anna'
   # *only for mode "custom", dont set manually
@@ -166,15 +166,15 @@ sf_fish_tts:
 
 # OpenAI TTS: the speech endpoint of OpenLux, or of another service with the API of OpenAI
 openai_tts:
-  api_key: '${OPENAI_TTS_API_KEY:-}'  # custom: #21
-  voice: 'alloy'
+  api_key: '${OPENAI_TTS_API_KEY}'    # custom: #21
+  voice: 'Hải Đăng'
   # *Base URL and model of the speech endpoint
-  base_url: 'https://api.openlux.ai/v1'
-  model: 'gpt-4o-mini-tts'
+  base_url: 'http://127.0.0.1:8000/v1'
+  model: 'vieneu-v3-turbo'
 
 # Fish Audio, the official API (https://fish.audio)
 fish_audio:
-  api_key: '${FISH_AUDIO_API_KEY:-}'  # custom: #21
+  api_key: 'YOUR_FISH_AUDIO_KEY'      # custom: #21
   # clone: the voice of the video is cloned; preset: the fixed voice of voice_id
   mode: 'clone'
   # The voice of the mode "preset": the ID of a voice of fish.audio, the last part of the address of its page
@@ -188,7 +188,7 @@ fish_audio:
 
 # SiliconFlow CosyVoice2 Clone
 sf_cosyvoice2:
-  api_key: '${SILICONFLOW_API_KEY:-}'  # custom: #21
+  api_key: 'YOUR_SF_KEY'               # custom: #21
 
 # Edge TTS configuration
 edge_tts:
@@ -196,7 +196,7 @@ edge_tts:
 
 # Soniox TTS (custom). The key falls back to SONIOX_API_KEY, then whisper.soniox_api_key.
 soniox_tts:
-  api_key: '${SONIOX_API_KEY:-}'  # custom: #21
+  api_key: ''                     # custom: #21
   # Built-in voice name (pick it in the dubbing settings) or a cloned voice ID
   voice: 'Linh'
   # ISO code of the dubbing text
@@ -210,14 +210,14 @@ soniox_tts:
 # key JSON in GOOGLE_APPLICATION_CREDENTIALS, see "Setup Google Cloud" in CUSTOM.md
 vertex:
   # Project ID billed for the requests; empty = the project of the credential
-  project: ''
+  project: 'videolingo-512414'
   # *Location of the Gemini endpoint
   location_llm: 'global'
 
 # Vertex AI dubbing (custom): Cloud Text-to-Speech
 vertex_tts:
   # Cloud TTS voice name; empty = vi-VN-Chirp3-HD-Aoede
-  voice: ''
+  voice: 'vi-VN-Chirp3-HD-Charon'
   # BCP-47 code of the dubbing text
   language: 'vi-VN'
   # Speaking rate from 0.25 to 2.0
@@ -232,7 +232,7 @@ gpt_sovits:
 
 # F5-TTS, 302.ai API only: the voice of the video is cloned
 f5tts:
-  302_api: '${API_302_KEY:-}'  # custom: #21
+  302_api: 'YOUR_302_API_KEY'  # custom: #21
 
 # *Audio speed range
 speed_factor:
