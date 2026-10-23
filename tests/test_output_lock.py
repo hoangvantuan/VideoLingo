@@ -133,7 +133,8 @@ def test_a_run_paused_by_failures_in_a_row_drops_the_lock_and_resume_takes_it_ba
             seen.append(output_lock.is_locked())
             super()._maybe_fail()
 
-    run, _ytdlp = start(["a1", "c3", "f6"], pipeline=Pipeline({"First intro", "Second talk"}))
+    pipeline = Pipeline({"First intro", "Second talk"})
+    run, _ytdlp = start(["a1", "c3", "f6"], pipeline=pipeline)
     wait_for(run, "paused")
     assert not output_lock.is_locked() and not output_lock.LOCK_FILE.exists()
 
@@ -144,8 +145,9 @@ def test_a_run_paused_by_failures_in_a_row_drops_the_lock_and_resume_takes_it_ba
     assert run.snapshot().state == "paused" and not output_lock.LOCK_FILE.exists()
 
     Path("output/other.mp4").unlink()
+    pipeline.fail.clear()  # Resume runs "Second talk" again first (#19)
     run.resume()
     snapshot = finish(run)
 
-    assert snapshot.state == "completed" and seen == [True, True, True]
+    assert snapshot.state == "completed" and seen == [True, True, True, True]
     assert not output_lock.is_locked() and not output_lock.LOCK_FILE.exists()

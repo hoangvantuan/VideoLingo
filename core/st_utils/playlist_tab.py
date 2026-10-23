@@ -98,6 +98,16 @@ def _run_panel():
         st.success(t("Playlist run completed!"))
     elif snapshot.state == "error":
         st.error(f"❌ {t('Task error')}: {snapshot.error}")
+    if not active and any(v.selected and v.status == playlist_run.FAILED for v in snapshot.videos):
+        # each `Lỗi` video goes on from the step that failed, with the work kept in its history folder
+        if st.button(f"🔁 {t('Retry failed videos')}", key="playlist_retry", width="stretch"):
+            try:
+                run.retry_failed()
+            except playlist_run.PlaylistRunError as e:
+                message = str(e)
+                st.error(t(message))
+            else:
+                st.rerun()
 
     labels = _status_labels()
     st.dataframe(

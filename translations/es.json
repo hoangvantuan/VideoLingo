@@ -265,5 +265,6 @@
     "Failed step": "Paso fallido",
     "Error": "Mensaje de error",
     "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "2 vídeos fallaron seguidos, así que la ejecución de la playlist se pausó. Suele ser un error del sistema (cuota, clave de API, red o cookies): corrígelo y luego reanuda.",
-    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "Una ejecución de lista de reproducción está usando `output/`. El modo de un solo video vuelve a estar disponible cuando la ejecución deja de correr."
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "Una ejecución de lista de reproducción está usando `output/`. El modo de un solo video vuelve a estar disponible cuando la ejecución deja de correr.",
+    "Retry failed videos": "Volver a ejecutar los vídeos fallidos"
 }

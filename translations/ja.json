@@ -265,5 +265,6 @@
     "Failed step": "失敗したステップ",
     "Error": "エラー",
     "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "2 本の動画が続けて失敗したため、プレイリストの実行を一時停止しました。多くはシステムのエラー（クォータ、API キー、ネットワーク、Cookie）です。原因を直してから再開してください。",
-    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "プレイリストの実行が `output/` を使用しています。実行が終わると、単一動画モードを再び使えます。"
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "プレイリストの実行が `output/` を使用しています。実行が終わると、単一動画モードを再び使えます。",
+    "Retry failed videos": "失敗した動画を再実行"
 }
