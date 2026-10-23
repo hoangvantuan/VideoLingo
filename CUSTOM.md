@@ -47,11 +47,13 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/fixtures/config.yaml`, `tests/template_config.py` | #22 — bản mẫu `config.yaml` mà test đọc/chép (`TEMPLATE_CONFIG`), để test không phụ thuộc `config.yaml` của người vận hành. Sửa `config.yaml` mẫu thì làm mới: `git show HEAD:config.yaml > tests/fixtures/config.yaml` |
 | `scripts/upgrade_config.py` | #22 — script người dùng tự chạy: đặt giá trị của `config.yaml` đang dùng lên bản mẫu của repo (`--dry-run`, `--template`, sao lưu `config.before-upgrade.yaml` quyền 600) |
 | `tests/test_upgrade_config.py` | Test #22: script nâng cấp config (file tạm) |
-| `core/utils/history_folder.py` | #14 — `merge_output(destination)`: chuyển toàn bộ `output/` (kể cả `log/`, `gpt_log/`) vào thư mục history chọn sẵn, không xoá nội dung đã có ở đích |
+| `core/utils/history_folder.py` | #14 — `merge_output(destination)`: chuyển toàn bộ `output/` (kể cả `log/`, `gpt_log/`) vào thư mục history chọn sẵn, không xoá nội dung đã có ở đích. #18: khoá của Lượt chạy playlist ở lại `output/` |
 | `tests/test_history_destination.py` | Test #14: lưu vào thư mục history chọn sẵn giữ nội dung cũ |
 | `core/playlist_run.py` | #14 — Lượt chạy playlist (ADR-0002): đọc Playlist bằng yt-dlp chế độ flat (`read_playlist`), `PlaylistRun` (`create`, `start`, `pause`, `resume`, `wait`, `snapshot`), lượt chạy chung của tiến trình (`current_run()`), file trạng thái `history/<playlist>/playlist_run.json`. Adapter `ytdlp` và `plan` thay được khi test |
 | `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
+| `core/utils/output_lock.py` | #18 — khoá `output/.playlist_run.lock` (ghi PID) trong lúc Lượt chạy playlist đang chạy; `is_locked()` cho chế độ 1 video và API, bỏ (và xoá) khoá cũ sau crash: cùng tiến trình mà không còn lượt chạy sống, hoặc tiến trình ghi khoá đã chết |
+| `tests/test_output_lock.py` | Test #18: khoá lúc chạy, pause, lỗi, stop; khoá cũ sau crash; khoá của tiến trình khác |
 | `tests/test_playlist_rerun.py` | Test #17: đọc lại Playlist đã chạy thì video `Xong` (theo video ID trong file trạng thái) được đánh dấu `done` và bỏ chọn sẵn trên tab; video `Xong` được tick lại thì làm lại vào đúng thư mục cũ; video mới không lấy trùng thư mục của video khác |
 | `core/playlist_run.py`, `core/st_utils/playlist_tab.py` | #15 — video lỗi không chặn lượt chạy: video `Lỗi` kèm bước hỏng và lỗi ngắn (snapshot, file trạng thái, cột trên tab), phần dở chuyển vào history của video rồi chạy tiếp; 2 video lỗi liên tiếp thì tự pause với `FAILED_IN_A_ROW` |
 | `tests/test_playlist_failures.py` | Test #15: pipeline giả ném lỗi ở bước chỉ định: một video lỗi rồi chạy tiếp, lỗi khi tải, 2 lỗi liên tiếp tự pause, video thành công xen giữa đặt lại bộ đếm |
@@ -110,6 +112,10 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `translations/*.json` (#14) | 26 key của tab Playlist và Lượt chạy playlist, đủ 7 ngôn ngữ | 26 × 7 |
 | `tests/test_ui_translations.py` (#15) | `DYNAMIC_T_ARGS` của `playlist_tab.py` thêm `snapshot.pause_message`, `v.failed_step` (key được kiểm trong `tests/test_playlist_failures.py`, `tests/test_playlist_run.py`) | 1 |
 | `translations/*.json` (#15) | 3 key của video lỗi (`Failed step`, `Error`, `FAILED_IN_A_ROW`), đủ 7 ngôn ngữ | 3 × 7 |
+| `api.py` (#18) | `require_idle()` trả `409` khi `output_lock.is_locked()` (chặn `/input`, `/run`, `/archive`) | 3 |
+| `tests/test_api.py` (#18) | test `test_a_playlist_run_lock_rejects_mutations_and_a_stale_one_does_not` | 1 hàm |
+| `st.py` (#18) | import `output_lock`; tab "Single video" hiện cảnh báo thay cho luồng a→b→c khi `output_lock.is_locked()` | 1 + 3 |
+| `translations/*.json` (#18) | 1 key thông báo khoá chế độ 1 video, đủ 7 ngôn ngữ | 1 × 7 |
 
 ## Cấu hình F1 (Soniox)
 

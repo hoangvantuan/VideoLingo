@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from core import playlist_run
+from core.utils import output_lock
 from tests.test_playlist_run import PLAYLIST, URL, FakePipeline, FakeYtdlp, files, finish, start, watch, workspace  # noqa: F401
 
 ROOT = Path("history/Talks_ 2026_10")
@@ -23,7 +24,8 @@ class OutputCheckingYtdlp(FakeYtdlp):
         self.output_empty = []
 
     def download(self, url):
-        self.output_empty.append(not Path("output").exists() or not any(Path("output").iterdir()))
+        self.output_empty.append(not Path("output").exists()
+                                 or not any(p != output_lock.LOCK_FILE for p in Path("output").iterdir()))
         super().download(url)
 
 

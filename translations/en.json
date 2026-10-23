@@ -260,5 +260,6 @@
     "A playlist run is already active.": "A playlist run is already active.",
     "Failed step": "Failed step",
     "Error": "Error",
-    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume."
+    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.",
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "A playlist run is using `output/`. The single video mode is available again once the run is no longer running."
 }

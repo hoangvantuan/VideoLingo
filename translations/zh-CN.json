@@ -260,5 +260,6 @@
     "A playlist run is already active.": "已有一个播放列表正在运行。",
     "Failed step": "失败的步骤",
     "Error": "错误",
-    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "连续 2 个视频失败，播放列表运行已暂停。这通常是系统错误（配额、API 密钥、网络或 cookies）：修复后再继续。"
+    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "连续 2 个视频失败，播放列表运行已暂停。这通常是系统错误（配额、API 密钥、网络或 cookies）：修复后再继续。",
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "播放列表正在使用 `output/`。播放列表停止运行后，单个视频模式即可再次使用。"
 }

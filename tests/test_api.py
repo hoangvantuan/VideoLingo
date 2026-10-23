@@ -283,3 +283,23 @@ def test_input_refuses_a_file_without_subtitles(client):
         assert client.post("/input", json=request).status_code == 422
         assert client.post("/input", json={"source": subtitles, "existing": "replace"}).status_code == 422
     assert Path("output/sample.mp4").exists()
+
+
+def test_a_playlist_run_lock_rejects_mutations_and_a_stale_one_does_not(client):  # custom: playlist #18
+    import os
+    from core.utils import output_lock
+    process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        Path("output").mkdir()
+        output_lock.LOCK_FILE.write_text(str(process.pid))  # the Streamlit process runs a playlist
+        Path("sample.mp4").write_bytes(b"test media")
+        assert client.post("/input", json={"source": str(Path("sample.mp4").resolve())}).status_code == 409
+        assert client.post("/run", json={}).status_code == 409
+        assert client.post("/archive").status_code == 409
+        assert not api.runner.is_active
+    finally:
+        process.kill()
+        process.wait()
+    output_lock.LOCK_FILE.write_text(str(os.getpid()))  # left by a crash: no run is alive here
+    input_file(client)
+    assert not output_lock.LOCK_FILE.exists()
