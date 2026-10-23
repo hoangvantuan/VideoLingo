@@ -12,6 +12,8 @@ import subprocess
 import pytest
 import yaml
 
+from tests import TEMPLATE_CONFIG
+
 pytestmark = pytest.mark.skipif(
     not os.environ.get('VIDEOLINGO_TEST_AUDIO') or not os.environ.get('VIDEOLINGO_TEST_API_KEY'),
     reason='Real pipeline requires explicit audio and API credentials',
@@ -21,7 +23,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture
 def configured_workdir(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
-    cfg = yaml.safe_load((root / 'config.yaml').read_text(encoding='utf-8'))
+    cfg = yaml.safe_load(TEMPLATE_CONFIG.read_text(encoding='utf-8'))
     cfg['api'].update(key=os.environ['VIDEOLINGO_TEST_API_KEY'], base_url=os.environ.get('VIDEOLINGO_TEST_BASE_URL','https://api.openai.com/v1'), model=os.environ.get('VIDEOLINGO_TEST_MODEL','gpt-4o-mini'))
     cfg['whisper'].update(language='en', detected_language='en', runtime='local')
     cfg['tts_method'] = 'edge_tts'

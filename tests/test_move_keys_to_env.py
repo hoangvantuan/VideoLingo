@@ -11,6 +11,7 @@ import pytest
 from dotenv import dotenv_values
 
 from core.utils import config_utils
+from tests import TEMPLATE_CONFIG
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "move_keys_to_env.py"
 SECRETS = {"llm": "sk-llm-0123456789", "soniox": "sx-soniox-0123456789", "fish": "fa-fish-0123456789",
@@ -124,7 +125,7 @@ def test_nothing_to_move_leaves_the_files_alone(script, config, capsys):
 
 def test_the_tracked_config_references_every_key_and_dotenv_example_lists_them(script):
     root = SCRIPT.parents[1]
-    with open(root / "config.yaml", encoding="utf-8") as file:
+    with open(TEMPLATE_CONFIG, encoding="utf-8") as file:
         data = config_utils.yaml.load(file)
     references = []
 
