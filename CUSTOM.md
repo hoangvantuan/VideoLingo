@@ -49,6 +49,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_upgrade_config.py` | Test #22: script nâng cấp config (file tạm) |
 | `core/utils/history_folder.py` | #14 — `merge_output(destination)`: chuyển toàn bộ `output/` (kể cả `log/`, `gpt_log/`) vào thư mục history chọn sẵn, không xoá nội dung đã có ở đích |
 | `tests/test_history_destination.py` | Test #14: lưu vào thư mục history chọn sẵn giữ nội dung cũ |
+| `core/playlist_run.py` | #14 — Lượt chạy playlist (ADR-0002): đọc Playlist bằng yt-dlp chế độ flat (`read_playlist`), `PlaylistRun` (`create`, `start`, `pause`, `resume`, `wait`, `snapshot`), lượt chạy chung của tiến trình (`current_run()`), file trạng thái `history/<playlist>/playlist_run.json`. Adapter `ytdlp` và `plan` thay được khi test |
+| `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -98,6 +100,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `tests/test_backlog_fixes.py`, `tests/test_dependencies.py`, `tests/test_language_support.py`, `tests/test_audio_extract_quality.py`, `tests/test_pipeline_integration.py` (#22) | đọc/chép `TEMPLATE_CONFIG` (`tests/fixtures/config.yaml`) thay cho `config.yaml` của repo; test ghép phụ đề trỏ `CONFIG_PATH` vào bản mẫu | 3 + 3 + 2 + 2 + 2 |
 | `config.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
 | `core/utils/onekeycleanup.py` (#14) | import `merge_output`; `cleanup(destination=...)` chuyển `output/` vào thư mục chọn sẵn, giữ nội dung đã có (không có `destination` thì như cũ) | 4 |
+| `core/pipeline.py` (#14) | `review_terminology`, `review_translation` không tạm dừng khi runner có `unattended` (Lượt chạy playlist), dù `pause_before_translate`/`pause_after_translate` đang bật | 4 |
 
 ## Cấu hình F1 (Soniox)
 
