@@ -97,6 +97,20 @@ def test_run_uses_shared_plan_and_saves_parameters(client, monkeypatch):
     assert client.get("/files/..%5Cconfig.yaml").status_code == 404
 
 
+def test_run_saves_original_volume(client, monkeypatch):  # custom: F10
+    input_file(client)
+    monkeypatch.setattr(api, "get_steps", lambda stage, dubbing: [])
+    for volume in (-0.1, 1.5, "loud"):
+        assert client.post("/run", json={"original_volume": volume}).status_code == 422
+    assert "original_volume" not in yaml.safe_load(Path("config.yaml").read_text())
+    assert client.post("/run", json={"stage": "all", "original_volume": 0.25}).status_code == 202
+    finish(client)
+    assert yaml.safe_load(Path("config.yaml").read_text())["original_volume"] == 0.25
+    assert client.post("/run", json={"stage": "all", "original_volume": 0}).status_code == 202
+    finish(client)
+    assert yaml.safe_load(Path("config.yaml").read_text())["original_volume"] == 0
+
+
 def test_busy_and_stopping_reject_mutations(client, monkeypatch):
     input_file(client)
     entered, release = threading.Event(), threading.Event()

@@ -12,6 +12,8 @@ from core.tts_backend.sf_cosyvoice2 import cosyvoice_tts_for_videolingo
 from core.tts_backend.custom_tts import custom_tts
 from core.prompts import get_correct_text_prompt
 from core.tts_backend._302_f5tts import f5_tts_for_videolingo
+from core.tts_backend.soniox_tts import soniox_tts  # custom
+from core.tts_backend.vertex_tts import vertex_tts  # custom
 from core.utils import *
 
 def clean_text_for_tts(text):
@@ -61,6 +63,10 @@ def tts_main(text, save_as, number, task_df):
                 cosyvoice_tts_for_videolingo(text, save_as, number, task_df)
             elif TTS_METHOD == 'f5tts':
                 f5_tts_for_videolingo(text, save_as, number, task_df)
+            elif TTS_METHOD == 'soniox_tts':  # custom
+                soniox_tts(text, save_as)
+            elif TTS_METHOD == 'vertex_tts':  # custom
+                vertex_tts(text, save_as)  # custom
                 
             # Check generated audio duration
             duration = get_audio_duration(save_as)

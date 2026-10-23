@@ -18,3 +18,6 @@ docs/private-*.md
 tests/evaluate_private_translation.py
 tests/repair_subtitle_timeline.py
 tests/test_subtitle_timeline.py
+# custom #22: config.yaml is tracked and holds no key; the backup of move_keys_to_env.py does
+config.backup.yaml
+config.before-upgrade.yaml

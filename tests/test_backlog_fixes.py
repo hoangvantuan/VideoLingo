@@ -4,6 +4,8 @@ import os
 import pandas as pd
 import pytest
 
+from tests.template_config import TEMPLATE_CONFIG  # custom (#22)
+
 
 # ------------------------------------------------------------------
 # _6_gen_sub: punctuation-only subtitle lines (#459, #471)
@@ -52,7 +54,9 @@ def test_unmatched_sentence_still_raises():
 ])
 def test_remerged_translation_uses_target_script_joiner(monkeypatch, source_language, parts, expected):
     import core._5_split_sub as split_sub
+    from core.utils import config_utils  # custom (#22)
 
+    monkeypatch.setattr(config_utils, "CONFIG_PATH", str(TEMPLATE_CONFIG))  # custom (#22): get_align_prompt reads it
     align = [{f"target_part_{i + 1}": part} for i, part in enumerate(parts)]
     monkeypatch.setattr(split_sub, "ask_gpt", lambda *args, **kwargs: {"align": align})
     monkeypatch.setattr(split_sub, "load_key", lambda key: source_language if key.startswith("whisper") else None)
@@ -343,6 +347,8 @@ def _check_api(monkeypatch, tmp_path, outcome, key="sk-test"):
         return SimpleNamespace(chat=SimpleNamespace(completions=completions))
 
     monkeypatch.setattr(module, "load_key", config.get)
+    monkeypatch.setattr("core.utils.llm_profile.load_key", config.get)  # custom
+    monkeypatch.setattr("core.utils.llm_profile.load_key_or", config.get)  # custom
     monkeypatch.setattr(module, "OpenAI", fake_openai)
     monkeypatch.setattr(module, "GPT_LOG_FOLDER", str(tmp_path))
     return sidebar.check_api(), completions, seen
@@ -708,6 +714,7 @@ def _split_sub(monkeypatch, split, align, max_length=20):
 
     settings = {"subtitle": {"max_length": max_length, "target_multiplier": 1.2}, "max_workers": 2}
     monkeypatch.setattr(module, "load_key", lambda key: settings[key])
+    monkeypatch.setattr(module, "llm_max_workers", lambda: settings["max_workers"])  # custom
     monkeypatch.setattr(module, "split_sentence", lambda sentence, num_parts: split(sentence) if callable(split) else split)
     monkeypatch.setattr(module, "get_align_prompt", lambda src, tr, part: tr)
     monkeypatch.setattr(module, "ask_gpt", fake_ask_gpt)
@@ -1126,6 +1133,7 @@ def test_source_subtitles_without_a_translation(monkeypatch, tmp_path):
         f.write("Hello world.\nHow are you?\n")
     settings = {"subtitle": {"max_length": 8, "target_multiplier": 1.2}, "max_workers": 2}
     monkeypatch.setattr(split_sub, "load_key", lambda key: settings[key])
+    monkeypatch.setattr(split_sub, "llm_max_workers", lambda: settings["max_workers"])  # custom
     split = {"Hello world.": "Hello\nworld.", "How are you?": "How are\nyou?"}
     monkeypatch.setattr(split_sub, "split_sentence", lambda sentence, num_parts: split.get(sentence, sentence))
 

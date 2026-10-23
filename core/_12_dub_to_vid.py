@@ -10,6 +10,7 @@ from core._1_ytdlp import find_video_files
 from core.utils import *
 from core.utils.models import *
 from core.utils.subtitle_style import get_subtitle_filters
+from core.utils.original_audio import mix_original, mix_filter  # custom
 
 console = Console()
 
@@ -55,7 +56,8 @@ def merge_video_audio():
     normalized_dub_audio = 'output/normalized_dub.wav'
     normalize_dub_audio(DUB_AUDIO, normalized_dub_audio)
     
-    has_background = os.path.isfile(background_file)
+    original = mix_original(load_key, VIDEO_FILE)  # custom: F10, replaces the demucs background
+    has_background = os.path.isfile(background_file) and original is None  # custom
     cmd = ['ffmpeg', '-y', '-i', VIDEO_FILE]
     if has_background:
         cmd.extend(['-i', background_file])
@@ -76,14 +78,16 @@ def merge_video_audio():
                        f'{subtitle_filter}[v]')
     else:
         rprint("[bold yellow]Subtitles are not burned in: the dubbed audio is merged into the original video.[/bold yellow]")
-    if has_background:
+    if original is not None:  # custom
+        filters.append(mix_filter(original))  # custom
+    elif has_background:  # custom
         filters.append('[1:a][2:a]amix=inputs=2:duration=first:dropout_transition=3[a]')
     else:
         rprint('[yellow]Original background audio is unavailable; exporting the dubbed voice alone.[/yellow]')
     if filters:
         cmd.extend(['-filter_complex', ';'.join(filters)])
 
-    cmd.extend(['-map', '[v]' if burn_subtitles else '0:v:0', '-map', '[a]' if has_background else '1:a'])
+    cmd.extend(['-map', '[v]' if burn_subtitles else '0:v:0', '-map', '[a]' if has_background or original is not None else '1:a'])  # custom
     encoder = []
     if load_key("ffmpeg_gpu"):
         rprint("[bold green]Using GPU acceleration...[/bold green]")

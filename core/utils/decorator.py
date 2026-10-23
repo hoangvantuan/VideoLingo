@@ -1,4 +1,5 @@
 from core.task_runner import StopTask
+from core.utils.config_errors import ConfigError  # custom
 
 import functools
 import time
@@ -17,7 +18,7 @@ def except_handler(error_msg, retry=0, delay=1, default_return=None):
             for i in range(retry + 1):
                 try:
                     return func(*args, **kwargs)
-                except StopTask:
+                except (StopTask, ConfigError):  # custom: config errors are not retried
                     raise
                 except Exception as e:
                     last_exception = e
