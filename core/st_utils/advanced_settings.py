@@ -58,9 +58,9 @@ def general():
             help="Số request LLM song song; đặt 1 nếu dùng LLM chạy local")
     _number("Số request TTS song song (tts_max_workers)", "tts_max_workers", 0, 64, 1, fallback=0,
             help="Giới hạn số request TTS song song; 0 = bằng max_workers")
-    _toggle("Tăng tốc GPU cho FFmpeg (h264_nvenc)", "ffmpeg_gpu", fallback=False,
+    _toggle("Tăng tốc GPU cho FFmpeg, h264_nvenc (ffmpeg_gpu)", "ffmpeg_gpu", fallback=False,
             help="Mã hóa video bằng h264_nvenc; chỉ bật khi GPU NVIDIA hỗ trợ")
-    _choice("Độ phân giải tải YouTube", "ytb_resolution", ["360", "1080", "best"], fallback="1080",
+    _choice("Độ phân giải tải YouTube (ytb_resolution)", "ytb_resolution", ["360", "1080", "best"], fallback="1080",
             help="Độ phân giải mặc định khi tải video YouTube")
 
 
@@ -93,7 +93,7 @@ def _style(kind, key, label, field):
     from core.utils.subtitle_style import get_subtitle_style, save_subtitle_style, to_ass_color
 
     style = get_subtitle_style(kind)
-    label = f"{label} – {STYLE_KINDS[kind]}"
+    label = f"{label} – {STYLE_KINDS[kind]} (subtitle.style.{kind}.{key})"
     if field == "color":
         entered = st.text_input(label, value=style[key], help=COLOR_HELP, key=f"advanced_style_{kind}_{key}").strip()
         value = to_ass_color(entered)
