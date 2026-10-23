@@ -3,6 +3,7 @@ import os
 import shutil
 import threading
 import unicodedata
+from core.utils import env_keys  # custom: #21, keys in .env
 
 CONFIG_PATH = 'config.yaml'
 lock = threading.Lock()
@@ -23,7 +24,8 @@ yaml.preserve_quotes = True
 # load & update config
 # -----------------------
 
-def load_key(key):
+def load_key(key, resolve=True):  # custom: #21, resolve=False reads a ${VAR} reference as written
+    env_keys.load_env()  # custom: #21
     with lock:
         ensure_config()
         with open(CONFIG_PATH, 'r', encoding='utf-8') as file:
@@ -36,7 +38,7 @@ def load_key(key):
             value = value[k]
         else:
             raise KeyError(f"Key '{k}' not found in configuration")
-    return value
+    return env_keys.resolve(value) if resolve else value  # custom: #21
 
 def load_key_or(key, default):
     """Read an optional key; config.yaml files written before the key existed keep working."""
@@ -61,6 +63,7 @@ def update_key(key, new_value, add_missing=False):
                 return False
 
         if isinstance(current, dict) and (keys[-1] in current or add_missing):
+            new_value = env_keys.keep_references(current.get(keys[-1]), new_value)  # custom: #21, a key never lands in config.yaml
             current[keys[-1]] = new_value
             # Keep manual source-language changes atomic for UI and CLI callers.
             if key == "whisper.language" and new_value != "auto":

@@ -10,7 +10,7 @@ import threading
 
 from ruamel.yaml import YAML
 
-from core.utils import config_utils
+from core.utils import config_utils, env_keys
 from core.utils.config_utils import load_key_or, update_key
 
 # A parser of our own: the shared config_utils.yaml is not thread-safe, and the sidebar reruns while the
@@ -56,6 +56,6 @@ def current(key, fallback=None):
 def save(key, value):
     """Write `key`, adding it and any missing (or empty) parent section to an older config.yaml."""
     parent, _, _ = key.rpartition(".")
-    if parent and not isinstance(load_key_or(parent, None), dict):
+    if parent and not isinstance(env_keys.raw(parent), dict):  # raw: a section holding an unset ${VAR} is still a section
         save(parent, {})
     update_key(key, value, add_missing=True)

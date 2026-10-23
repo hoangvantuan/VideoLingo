@@ -18,6 +18,8 @@ requests>=2.32.5,<3
 google-auth>=2.40,<3
 # custom: official Soniox SDK for the Soniox ASR runtime and Soniox TTS
 soniox>=2.10,<3
+# custom: #21, loads the keys of .env that config.yaml refers to as ${VAR}
+python-dotenv>=1.0,<2
 # Fish Audio sends the reference audio of a voice clone as MessagePack
 msgpack>=1.0,<2
 spacy>=3.8.7,<3.9

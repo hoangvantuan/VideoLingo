@@ -27,6 +27,8 @@ class GoogleCredentialError(ConfigError, RuntimeError):
 
 def _load_default():
     import google.auth
+    from core.utils.env_keys import load_env
+    load_env()  # #21: GOOGLE_APPLICATION_CREDENTIALS may be set in .env
     return google.auth.default(scopes=SCOPES)
 
 

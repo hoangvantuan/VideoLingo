@@ -5,6 +5,7 @@ import requests
 from translations.translations import translate as t
 from core.utils import *
 from core.utils.ask_gpt import is_local_endpoint, normalize_base_url
+from core.st_utils.key_input import key_input  # custom: #21, key boxes read ${VAR} references from .env
 
 
 def config_input(label, key, help=None, placeholder=None):
@@ -125,7 +126,7 @@ def page_setting():
     )
 
     def custom_llm_inputs():  # custom: F7, the upstream api inputs apply only to the Profile custom
-        config_input(t("API_KEY"), "api.key", placeholder=t("Enter your API key"))
+        key_input(t("API_KEY"), "api.key", placeholder=t("Enter your API key"))  # custom: #21
         config_input(
             t("BASE_URL"),
             "api.base_url",
@@ -267,12 +268,10 @@ def page_setting():
             if backend == "whisperx" and importlib.util.find_spec("whisperx") is None:
                 st.warning(t("WhisperX is not installed. Follow the manual page (docs/pages/docs/whisperx-manual.en-US.md) and install the extra packages yourself, or set whisper.backend to qwen."))
         if runtime == "elevenlabs":
-            config_input(t("ElevenLabs API"), "whisper.elevenlabs_api_key")
+            key_input(t("ElevenLabs API"), "whisper.elevenlabs_api_key")  # custom: #21
         elif runtime == "soniox":  # custom: SONIOX_API_KEY env var takes precedence
-            soniox_key = st.text_input("Soniox API", value=load_key("whisper.soniox_api_key"), type="password",  # custom: F1, masked
-                                       key="whisper_soniox_api_key")  # custom: stable id, see tests/test_consecutive_edits.py
-            if soniox_key != load_key("whisper.soniox_api_key"):  # custom
-                update_key("whisper.soniox_api_key", soniox_key)  # custom
+            key_input("Soniox API", "whisper.soniox_api_key",  # custom: F1/#21, masked
+                      widget_key="whisper_soniox_api_key")  # custom: stable id, see tests/test_consecutive_edits.py
         elif runtime == "mai":
             from core.asr_backend.mai_asr import detect_region
 
@@ -287,21 +286,13 @@ def page_setting():
                 update_key("whisper.mai_provider", provider, add_missing=True)
                 st.rerun()
             if provider == "openrouter":
-                stored_key = str(load_key_or("whisper.mai_openrouter_api_key", "") or "")
-                router_key = st.text_input(
-                    t("OpenRouter API key"), value=stored_key, type="password",
-                )
-                if router_key != stored_key:
-                    update_key("whisper.mai_openrouter_api_key", router_key, add_missing=True)
+                key_input(t("OpenRouter API key"), "whisper.mai_openrouter_api_key")  # custom: #21
                 st.caption(t("Audio is sent to OpenRouter for MAI-Transcribe-2 and may incur charges."))
             else:
-                stored_key = str(load_key_or("whisper.mai_api_key", "") or "")
-                speech_key = st.text_input(
-                    t("Azure Speech key"), value=stored_key, type="password",
+                speech_key = key_input(  # custom: #21
+                    t("Azure Speech key"), "whisper.mai_api_key",  # custom: #21
                     help=t("Use a key from an Azure Speech resource in a region where MAI-Transcribe-2 is available."),
                 )
-                if speech_key != stored_key:
-                    update_key("whisper.mai_api_key", speech_key, add_missing=True)
                 stored_region = str(load_key_or("whisper.mai_region", "") or "")
                 region = st.text_input(
                     t("Azure Speech region or resource endpoint"), value=stored_region,
