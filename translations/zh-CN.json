@@ -257,5 +257,6 @@
     "Download video": "下载视频",
     "Save to 'history'": "保存到 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` 中有另一个视频的文件。请在单个视频模式中将其归档到 'history' 或删除，然后再开始播放列表。",
-    "A playlist run is already active.": "已有一个播放列表正在运行。"
+    "A playlist run is already active.": "已有一个播放列表正在运行。",
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "播放列表正在使用 `output/`。播放列表停止运行后，单个视频模式即可再次使用。"
 }

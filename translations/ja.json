@@ -257,5 +257,6 @@
     "Download video": "動画をダウンロード",
     "Save to 'history'": "'history' に保存",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` に別の動画のファイルがあります。単一の動画モードで 'history' にアーカイブするか削除してから、プレイリストを開始してください。",
-    "A playlist run is already active.": "プレイリストの実行がすでに進行中です。"
+    "A playlist run is already active.": "プレイリストの実行がすでに進行中です。",
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "プレイリストの実行が `output/` を使用しています。実行が終わると、単一動画モードを再び使えます。"
 }

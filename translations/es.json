@@ -257,5 +257,6 @@
     "Download video": "Descargar vídeo",
     "Save to 'history'": "Guardar en 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` contiene los archivos de otro vídeo. Archívalos en 'history' o elimínalos en el modo de un solo vídeo y luego inicia la lista.",
-    "A playlist run is already active.": "Ya hay una ejecución de lista activa."
+    "A playlist run is already active.": "Ya hay una ejecución de lista activa.",
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "Una ejecución de lista de reproducción está usando `output/`. El modo de un solo video vuelve a estar disponible cuando la ejecución deja de correr."
 }

@@ -27,6 +27,9 @@ The state file ``history/<playlist>/playlist_run.json`` holds the URL, title, sc
 state (``running`` or ``finished``) and every video with its status and folder. It is written
 after every change of a Trạng thái video.
 
+While the run runs it holds the lock of ``output/`` (``core.utils.output_lock``), which the
+single video mode and the API respect; the lock goes when the background thread ends.
+
 Settings are read from config.yaml at each step, as in ADR-0002: a change in the sidebar
 applies to the following steps and videos.
 
@@ -43,6 +46,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.task_runner import TaskRunner
+from core.utils import output_lock
 from core.utils.config_utils import load_key
 from core.utils.onekeycleanup import cleanup, sanitize_filename
 
@@ -237,11 +241,18 @@ class PlaylistRun:
         with _lock:
             if _current is not None and _current._runner.is_active:
                 raise PlaylistRunError(RUN_ACTIVE)
+            if output_lock.is_locked():  # a run of another process; a stale lock is removed
+                raise PlaylistRunError(RUN_ACTIVE)
             if OUTPUT.exists() and any(OUTPUT.iterdir()):
                 raise PlaylistRunError(OUTPUT_NOT_EMPTY)
             _current = self
             self._save("running")
-            self._runner.start([("Playlist", self._process_all)])
+            output_lock.acquire()
+            try:
+                self._runner.start([("Playlist", self._process_all)])
+            except BaseException:
+                output_lock.release()
+                raise
 
     def pause(self):
         self._runner.pause()
@@ -290,12 +301,15 @@ class PlaylistRun:
     # ------ Background thread ------
 
     def _process_all(self):
-        for position, video in enumerate(self.videos):
-            if video.selected and video.status == WAITING:
-                TaskRunner.check_cancel()
-                self._process(position)
-        self.current_step = ""
-        self._save("finished")
+        try:
+            for position, video in enumerate(self.videos):
+                if video.selected and video.status == WAITING:
+                    TaskRunner.check_cancel()
+                    self._process(position)
+            self.current_step = ""
+            self._save("finished")
+        finally:
+            output_lock.release()
 
     def _process(self, position):
         video = self.videos[position]
@@ -310,7 +324,7 @@ class PlaylistRun:
         TaskRunner.check_cancel()
         self.current_step = SAVE_STEP
         cleanup(destination=str(self.folder / video.folder))
-        if OUTPUT.exists() and any(OUTPUT.iterdir()):
+        if OUTPUT.exists() and any(p != output_lock.LOCK_FILE for p in OUTPUT.iterdir()):
             raise RuntimeError(f"Some files of output/ could not be moved to {self.folder / video.folder}")
         self._set_status(position, DONE)
 

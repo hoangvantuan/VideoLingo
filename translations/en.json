@@ -257,5 +257,6 @@
     "Download video": "Download video",
     "Save to 'history'": "Save to 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.",
-    "A playlist run is already active.": "A playlist run is already active."
+    "A playlist run is already active.": "A playlist run is already active.",
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "A playlist run is using `output/`. The single video mode is available again once the run is no longer running."
 }

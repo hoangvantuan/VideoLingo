@@ -8,12 +8,14 @@ import os
 import shutil
 from pathlib import Path
 
+from core.utils.output_lock import LOCK_FILE
+
 
 def merge_output(destination, source="output"):
     """Move the files of `source` (with `log/`, `gpt_log/` and other folders) into `destination`.
 
     A file of the same name in `destination` is replaced, every other file there is kept.
-    `source` is removed once it is empty.
+    `source` is removed once it is empty. The lock of a Lượt chạy playlist stays in `source`.
     """
     source, destination = Path(source), Path(destination)
     if not source.exists():
@@ -22,6 +24,8 @@ def merge_output(destination, source="output"):
         target = destination / Path(folder).relative_to(source)
         target.mkdir(parents=True, exist_ok=True)
         for name in files:
+            if Path(folder) == source and name == LOCK_FILE.name:
+                continue
             if (target / name).is_dir():
                 shutil.rmtree(target / name)
             shutil.move(os.path.join(folder, name), target / name)
