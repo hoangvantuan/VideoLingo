@@ -65,7 +65,10 @@ def _run_panel():
     elif snapshot.state == "stopping":
         st.info(t("Stopping..."))
     elif snapshot.unfinished:
-        st.warning(f"⏹️ {t('Playlist run stopped. The unfinished video is kept in its history folder.')}")
+        if snapshot.state == "error":
+            st.error(f"❌ {t('Task error')}: {snapshot.error}")
+        else:
+            st.warning(f"⏹️ {t('Playlist run stopped. The unfinished video is kept in its history folder.')}")
         col1, col2 = st.columns(2)
         if col1.button(f"▶️ {t('Continue')}", key="playlist_continue", width="stretch"):
             try:
