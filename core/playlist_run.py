@@ -214,9 +214,14 @@ def read_playlist(url, ytdlp=None) -> Playlist:
             url=item.get("url") or item.get("webpage_url") or f"https://www.youtube.com/watch?v={item['id']}",
         ))
     title = info.get("title") or info.get("id") or "playlist"
-    earlier = _earlier_videos(title)
-    videos = [replace(v, done=earlier.get(v.video_id, {}).get("status") == DONE) for v in videos]
-    return Playlist(url=url, title=title, videos=tuple(videos))
+    return mark_done(Playlist(url=url, title=title, videos=tuple(videos)))
+
+
+def mark_done(playlist: Playlist) -> Playlist:
+    """The Playlist with each video ``done`` as the state file of its runs says; read again after a run."""
+    earlier = _earlier_videos(playlist.title)
+    return replace(playlist, videos=tuple(replace(v, done=earlier.get(v.video_id, {}).get("status") == DONE)
+                                          for v in playlist.videos))
 
 
 def _earlier_videos(title) -> dict:
