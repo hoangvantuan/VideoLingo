@@ -144,12 +144,12 @@ def _sidebar():
 
 @pytest.fixture
 def example_config(tmp_path, monkeypatch):
-    """config.example.yaml (placeholders only) as the config the whole sidebar reads."""
+    """The tracked config.yaml (no real key), copied, as the config the whole sidebar reads."""
     import shutil
     from pathlib import Path
 
     path = tmp_path / "config.yaml"
-    shutil.copy(Path(__file__).resolve().parents[1] / "config.example.yaml", path)
+    shutil.copy(Path(__file__).resolve().parents[1] / "config.yaml", path)
     monkeypatch.setattr(config_utils, "CONFIG_PATH", str(path))
 
 

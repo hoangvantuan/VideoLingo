@@ -171,7 +171,7 @@ Spec: issue #1. Quyết định: `docs/adr/0001-llm-profiles.md`.
 | Mã | Yêu cầu |
 |---|---|
 | N1 | **Dễ đồng bộ upstream:** tính năng mới để ở file mới. Sửa file lõi thì chỉ thêm "móc nối" ngắn (dưới 10 dòng mỗi file) và ghi lại trong `CUSTOM.md` |
-| N2 | **Bảo mật:** chỉ nghe trên IP Tailscale hoặc `127.0.0.1`. Không để secret trong git |
+| N2 | **Bảo mật:** chỉ nghe trên IP Tailscale hoặc `127.0.0.1`. Không để secret trong git: key nằm trong `.env` (bị ignore), `config.yaml` được track và chỉ chứa tham chiếu `${VAR}` (#21, #22; test `tests/test_tracked_config.py`) |
 | N3 | **Quyền riêng tư:** âm thanh gửi lên Soniox được xóa ngay sau khi xử lý xong. Nội dung nhạy cảm thì dùng ASR local (Qwen 0.6B) và chấp nhận chạy chậm |
 | N4 | **Tài nguyên:** VideoLingo không được làm treo các dịch vụ đang chạy (VieNeu-TTS, n8n, Postgres). Giới hạn CPU qua systemd (`CPUQuota`) nếu cần |
 | N5 | **Khả năng khôi phục:** chạy lại job thì dùng lại cache ASR và LLM có sẵn của upstream, không phải gọi lại API |

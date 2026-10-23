@@ -1,7 +1,6 @@
 """#12 (custom): every key that an operator has a reason to change is set from the sidebar, on a config.yaml
 older than those keys."""
 
-import shutil
 from pathlib import Path
 
 import pytest
@@ -11,7 +10,7 @@ from streamlit.testing.v1 import AppTest
 from core.utils import config_utils
 from core.utils.config_utils import load_key, load_key_or
 
-EXAMPLE = Path(__file__).resolve().parents[1] / "config.example.yaml"
+TRACKED = Path(__file__).resolve().parents[1] / "config.yaml"
 # keys deleted from the temporary config.yaml, as in a config.yaml written before them
 MISSING = {None: ["tts_max_workers", "audio", "speed_factor", "summary_length", "reflect_translate"],
            "subtitle": ["target_multiplier", "style"], "whisper": ["qwen_engine"], "openai_tts": ["model"]}
@@ -25,9 +24,8 @@ def _sidebar():
 
 @pytest.fixture
 def config(tmp_path, monkeypatch):
-    """config.example.yaml (placeholders only) without some keys; returns a function that sets top-level keys."""
-    shutil.copy(EXAMPLE, tmp_path / "config.example.yaml")
-    with open(EXAMPLE, encoding="utf-8") as file:
+    """The tracked config.yaml (no real key) without some keys; returns a function that sets top-level keys."""
+    with open(TRACKED, encoding="utf-8") as file:
         data = config_utils.yaml.load(file)
     for section, keys in MISSING.items():
         for key in keys:
@@ -191,21 +189,51 @@ def _advanced():
 
 @pytest.mark.parametrize("method", ["openai_tts", "fish_audio", "soniox_tts"])
 def test_every_advanced_label_names_its_key(config, method):
-    """CUSTOM.md: each label of "Nâng cao" ends with the config.example.yaml key that it sets, in brackets."""
+    """CUSTOM.md: each label of "Nâng cao" ends with the config.yaml key that it sets, in brackets."""
     import re
 
     config(tts_method=method)
     at = AppTest.from_function(_advanced).run(timeout=30)
     assert not at.exception
-    with open(EXAMPLE, encoding="utf-8") as file:
-        example = config_utils.yaml.load(file)
+    with open(TRACKED, encoding="utf-8") as file:
+        tracked = config_utils.yaml.load(file)
     labels = [item.label for kind in ("number_input", "selectbox", "toggle", "text_input", "text_area")
               for item in getattr(at, kind)]
     assert labels
     for label in labels:
         found = re.search(r"\(([\w.]+)\)$", label)
         assert found, f"no key in the label {label!r}"
-        node = example
+        node = tracked
         for part in found.group(1).split("."):
             assert isinstance(node, dict) and part in node, f"{found.group(1)!r} of {label!r} is not a config key"
             node = node[part]
+
+
+@pytest.mark.parametrize("method", ["openai_tts", "fish_audio", "soniox_tts", "vertex_tts"])
+def test_the_default_of_each_widget_is_the_value_of_the_tracked_config(tmp_path, monkeypatch, method):
+    """#22: a key missing from an older config.yaml shows the default given in code; it equals the tracked value."""
+    from core.st_utils import config_fields
+    from core.tts_backend import soniox_tts, vertex_tts
+
+    with open(TRACKED, encoding="utf-8") as file:
+        data = config_utils.yaml.load(file)
+    data["tts_method"] = method
+    path = tmp_path / "config.yaml"
+    with open(path, "w", encoding="utf-8") as file:
+        config_utils.yaml.dump(data, file)
+    monkeypatch.setattr(config_utils, "CONFIG_PATH", str(path))
+    monkeypatch.setattr(soniox_tts, "list_voices", lambda api_key, model=None: [])
+    monkeypatch.setattr(vertex_tts, "list_voices", lambda language: [])
+    calls = []
+    real_current = config_fields.current
+    monkeypatch.setattr(config_fields, "current",
+                        lambda key, fallback=None: calls.append((key, fallback)) or real_current(key, fallback))
+    st.cache_data.clear()
+    run()
+    st.cache_data.clear()
+    assert calls
+    # selectors of a branch (tts_method, whisper.backend, ...) have no meaningful default;
+    # 1 == 1.0 for speed_factor.min, "1080" == str(1080) for ytb_resolution
+    wrong = sorted({key for key, fallback in calls if fallback not in (None, "", {})
+                    and fallback != load_key(key) and str(fallback) != str(load_key(key))})
+    assert wrong == []

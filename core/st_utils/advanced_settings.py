@@ -1,8 +1,9 @@
 """#12 (custom) — the "Nâng cao" expander of the sidebar: every key that an operator may change and that had no
-widget yet, grouped like config.example.yaml. See the key table in CUSTOM.md.
+widget yet, grouped like config.yaml. See the key table in CUSTOM.md.
 
 Only config.yaml is written (through config_fields, so an older config.yaml gets the missing keys); the
-processing code reads the keys as before. A key that is not in config.yaml shows the config.example.yaml value.
+processing code reads the keys as before. A key that is not in config.yaml shows the `fallback` given here, the
+value of the tracked config.yaml (#22).
 Labels are plain text, not translation keys, so no locale file has to change.
 """
 

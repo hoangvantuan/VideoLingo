@@ -122,9 +122,9 @@ def test_nothing_to_move_leaves_the_files_alone(script, config, capsys):
     assert not (config.parent / "config.backup.yaml").exists()
 
 
-def test_the_example_config_references_every_key_and_dotenv_example_lists_them(script):
+def test_the_tracked_config_references_every_key_and_dotenv_example_lists_them(script):
     root = SCRIPT.parents[1]
-    with open(root / "config.example.yaml", encoding="utf-8") as file:
+    with open(root / "config.yaml", encoding="utf-8") as file:
         data = config_utils.yaml.load(file)
     references = []
 
