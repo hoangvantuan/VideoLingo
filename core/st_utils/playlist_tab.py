@@ -4,6 +4,8 @@ The run belongs to the process (``playlist_run.current_run()``), not to the sess
 so a new tab or F5 shows the same progress and controls it. An unfinished run (stopped, or
 left by a closed app) shows "Continue" and "End run" and never runs by itself.
 """
+from pathlib import Path
+
 import streamlit as st
 
 from core import playlist_run
@@ -131,6 +133,23 @@ def _run_panel():
     st.session_state["_playlist_run_active"] = busy
 
 
+def _video_viewer(snapshot):
+    """A player for the result of a `Xong` video: the browser may be on a machine without the history folder."""
+    done = {v.index: v for v in snapshot.videos if v.status == playlist_run.DONE and v.folder}
+    if not done:
+        return
+    with st.container(border=True):
+        index = st.selectbox(t("Watch a done video"), list(done), format_func=lambda i: f"{i}. {done[i].title}",
+                             key="playlist_watch")
+        folder = Path(done[index].folder)
+        files = [(label, folder / name) for label, name in
+                 ((t("Subtitle video"), "output_sub.mp4"), (t("Dubbed video"), "output_dub.mp4")) if (folder / name).exists()]
+        for column, (label, path) in zip(st.columns(len(files)) if files else [], files):
+            with column:
+                st.caption(label)
+                st.video(str(path))
+
+
 def _start_form(playlist):
     st.markdown(f"**{playlist.title}**")
     st.caption(t("Select the videos to process"))
@@ -166,6 +185,7 @@ def render():
             _run_panel()
     if run is not None:
         snapshot = run.snapshot()
+        _video_viewer(snapshot)  # not in the panel: its refresh every second would reload the players
         if snapshot.active or snapshot.unfinished:
             return
 

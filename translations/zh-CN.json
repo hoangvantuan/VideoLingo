@@ -254,6 +254,7 @@
     "Duration": "时长",
     "Status": "状态",
     "History folder": "历史文件夹",
+    "Watch a done video": "观看已完成的视频",
     "Download video": "下载视频",
     "Save to 'history'": "保存到 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` 中有另一个视频的文件。请在单个视频模式中将其归档到 'history' 或删除，然后再开始播放列表。",

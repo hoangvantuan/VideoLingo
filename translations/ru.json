@@ -254,6 +254,7 @@
     "Duration": "Длительность",
     "Status": "Статус",
     "History folder": "Папка истории",
+    "Watch a done video": "Смотреть готовое видео",
     "Download video": "Скачать видео",
     "Save to 'history'": "Сохранить в 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "В `output/` лежат файлы другого видео. Архивируйте их в 'history' или удалите в режиме одного видео, затем запустите плейлист.",

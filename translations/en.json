@@ -254,6 +254,7 @@
     "Duration": "Duration",
     "Status": "Status",
     "History folder": "History folder",
+    "Watch a done video": "Watch a done video",
     "Download video": "Download video",
     "Save to 'history'": "Save to 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.",

@@ -254,6 +254,7 @@
     "Duration": "長さ",
     "Status": "状態",
     "History folder": "履歴フォルダ",
+    "Watch a done video": "完了した動画を見る",
     "Download video": "動画をダウンロード",
     "Save to 'history'": "'history' に保存",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` に別の動画のファイルがあります。単一の動画モードで 'history' にアーカイブするか削除してから、プレイリストを開始してください。",

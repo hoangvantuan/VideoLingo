@@ -254,6 +254,7 @@
     "Duration": "Duración",
     "Status": "Estado",
     "History folder": "Carpeta del historial",
+    "Watch a done video": "Ver un video terminado",
     "Download video": "Descargar vídeo",
     "Save to 'history'": "Guardar en 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` contiene los archivos de otro vídeo. Archívalos en 'history' o elimínalos en el modo de un solo vídeo y luego inicia la lista.",
