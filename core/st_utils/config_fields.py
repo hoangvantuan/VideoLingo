@@ -4,10 +4,31 @@ A config.yaml written before a key existed does not have it: `current` then show
 config.example.yaml, and `save` adds the key together with any missing parent section.
 """
 
+import copy
 import os
+import threading
+
+from ruamel.yaml import YAML
 
 from core.utils import config_utils
 from core.utils.config_utils import load_key_or, update_key
+
+# A parser of our own: the shared config_utils.yaml is not thread-safe, and the sidebar reruns while the
+# pipeline thread reads config.yaml with it (BUG-0). The example file is parsed once per change.
+_parser = YAML()
+_lock = threading.Lock()
+_example_cache = {}
+
+
+def _example_data(path):
+    stamp = os.stat(path).st_mtime_ns
+    with _lock:
+        cached = _example_cache.get(path)
+        if cached is None or cached[0] != stamp:
+            with open(path, encoding="utf-8") as file:
+                cached = (stamp, _parser.load(file))
+            _example_cache[path] = cached
+        return cached[1]
 
 
 def _example(key):
@@ -15,13 +36,12 @@ def _example(key):
     path = os.path.join(os.path.dirname(config_utils.CONFIG_PATH), "config.example.yaml")
     if not os.path.exists(path):
         raise KeyError(key)
-    with open(path, encoding="utf-8") as file:
-        value = config_utils.yaml.load(file)
+    value = _example_data(path)
     for part in key.split("."):
         if not isinstance(value, dict) or part not in value:
             raise KeyError(key)
         value = value[part]
-    return value
+    return copy.deepcopy(value)
 
 
 def current(key, fallback=None):
