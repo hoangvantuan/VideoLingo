@@ -14,8 +14,15 @@ Public interface
   ``DUBBING`` (subtitles and dubbing). A video known to an earlier run keeps its history folder,
   and a video `Xong` that is not selected stays `Xong` in the state file.
 - ``run.start()`` makes the run the one of the process (``current_run()``) and processes the
-  videos in a background thread. It raises ``PlaylistRunError`` when ``output/`` is not empty or
-  another run is active. ``run.pause()``, ``run.resume()``, ``run.wait(timeout)``.
+  videos in a background thread. It raises ``PlaylistRunError`` when ``output/`` is not empty,
+  another run is active, or another run is unfinished. ``run.pause()``, ``run.resume()``,
+  ``run.wait(timeout)``.
+- ``run.stop()`` stops cooperatively: the unfinished work of the current video (with ``log/``
+  and ``gpt_log/``) is moved into its history folder, the video is ``WAITING`` again and
+  ``output/`` is empty. The run is then unfinished: ``run.start()`` continues it (Tiếp tục).
+- ``load_unfinished(ytdlp=None, plan=None)``: the unfinished run of this process, or the one
+  of a state file in ``history/`` (after the app was closed or crashed), or None. It does not
+  run by itself. ``run.end()`` (Kết thúc lượt chạy) marks it finished and keeps history.
 - ``run.snapshot() -> RunSnapshot``: state of the run, progress ``done/total``, the video being
   processed and its current step, the pause message, and for each video its Trạng thái video
   (``WAITING``, ``RUNNING``, ``DONE``, ``FAILED``, ``UNAVAILABLE``), history folder, and for a
@@ -34,8 +41,15 @@ most often a system error (quota, API key, network, cookies). A video done in be
 the count.
 
 The state file ``history/<playlist>/playlist_run.json`` holds the URL, title, scope, the run
-state (``running`` or ``finished``) and every video with its status and folder. It is written
-after every change of a Trạng thái video.
+state (``running``, ``interrupted`` once stopped, or ``finished``) and every video with its
+status and folder. It is written after every change of a Trạng thái video. A ``running`` state
+with no run alive in the process means the app was closed or crashed: the work of the video
+that was ``RUNNING`` is still in ``output/`` and is moved into its history folder on loading.
+
+The unfinished work of a stopped or crashed video (``partial`` in the state file) is moved
+back from its history folder into ``output/`` when its turn comes, and the video is not
+downloaded again; the pipeline skips the steps whose intermediate files exist. A video `Xong`
+that is selected again starts anew.
 
 While the run runs it holds the lock of ``output/`` (``core.utils.output_lock``), which the
 single video mode and the API respect; the lock goes when the background thread ends, and while
@@ -60,6 +74,7 @@ from typing import Callable
 from core.task_runner import StopTask, TaskRunner
 from core.utils import output_lock
 from core.utils.config_utils import load_key
+from core.utils.history_folder import merge_output
 from core.utils.onekeycleanup import cleanup, sanitize_filename
 
 OUTPUT = Path("output")
@@ -83,6 +98,13 @@ SAVE_STEP = "Save to 'history'"
 OUTPUT_NOT_EMPTY = ("`output/` holds the files of another video. Archive them to 'history' "
                     "or delete them in the single video mode, then start the playlist.")
 RUN_ACTIVE = "A playlist run is already active."
+RUN_UNFINISHED = "A playlist run is unfinished. Continue it or end it first."
+
+# State of a run in its state file
+RUN_RUNNING = "running"
+RUN_INTERRUPTED = "interrupted"
+RUN_FINISHED = "finished"
+
 FAILED_IN_A_ROW = ("2 videos failed in a row, so the playlist run paused. This is often a system error "
                    "(quota, API key, network or cookies): fix it, then resume.")
 FAILURES_TO_PAUSE = 2
@@ -199,6 +221,7 @@ class VideoSnapshot:
     url: str = ""
     failed_step: str = ""
     error: str = ""
+    partial: bool = False  # its history folder holds unfinished work, moved back into output/ on its turn
 
 
 @dataclass(frozen=True)
@@ -214,6 +237,7 @@ class RunSnapshot:
     pause_message: str
     error: str
     videos: tuple[VideoSnapshot, ...]
+    unfinished: bool = False  # not active and not finished: it can be continued or ended
 
 
 class PlaylistRunError(Exception):
@@ -240,6 +264,7 @@ class PlaylistRun:
     ytdlp: object = None
     plan: Callable | None = None
     current_step: str = ""
+    run_state: str = ""  # state in the state file, "" before the run is started
     _runner: TaskRunner = field(default_factory=_unattended_runner)
 
     @classmethod
@@ -270,6 +295,22 @@ class PlaylistRun:
         return cls(url=playlist.url, title=playlist.title, scope=scope, videos=videos,
                    ytdlp=ytdlp or Ytdlp(), plan=plan)
 
+    @classmethod
+    def _load(cls, path: Path, ytdlp=None, plan=None) -> "PlaylistRun":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("version") != 1:
+            raise ValueError(f"Unknown version of {path}")
+        run = cls(url=data["url"], title=data["title"], scope=data["scope"],
+                  videos=[VideoSnapshot(**v) for v in data["videos"]], ytdlp=ytdlp or Ytdlp(), plan=plan,
+                  run_state=data["state"])
+        if run.run_state == RUN_RUNNING:  # closed or crashed: the work of the video is in output/
+            for position, video in enumerate(run.videos):
+                if video.status == RUNNING:
+                    merge_output(run.folder / video.folder)
+                    run.videos[position] = replace(video, status=WAITING, partial=True)
+            run._save(RUN_INTERRUPTED)
+        return run
+
     @property
     def folder(self) -> Path:
         """``history/<playlist>/``, which holds the state file and the folder of each video."""
@@ -280,14 +321,20 @@ class PlaylistRun:
     def start(self):
         global _current
         with _lock:
-            if _current is not None and _current._runner.is_active:
+            if _current is not None and _current is not self and _current._runner.is_active:
+                raise PlaylistRunError(RUN_ACTIVE)
+            if self._runner.is_active:
                 raise PlaylistRunError(RUN_ACTIVE)
             if output_lock.is_locked():  # a run of another process; a stale lock is removed
                 raise PlaylistRunError(RUN_ACTIVE)
+            unfinished = _unfinished_state_file()
+            if unfinished is not None and not (self.run_state == RUN_INTERRUPTED
+                                               and unfinished == self.folder / STATE_FILE):
+                raise PlaylistRunError(RUN_UNFINISHED)
             if OUTPUT.exists() and any(OUTPUT.iterdir()):
                 raise PlaylistRunError(OUTPUT_NOT_EMPTY)
             _current = self
-            self._save("running")
+            self._save(RUN_RUNNING)
             output_lock.acquire()
             try:
                 self._runner.start([("Playlist", self._process_all)])
@@ -306,6 +353,17 @@ class PlaylistRun:
                     raise PlaylistRunError(OUTPUT_NOT_EMPTY)
                 output_lock.acquire()
             self._runner.resume()
+
+    def stop(self):
+        """Stop before the next step; the current video is parked in its history folder."""
+        self._runner.stop()
+
+    def end(self):
+        """Kết thúc lượt chạy: no more video is processed, history is kept as it is."""
+        with _lock:
+            if self._runner.is_active:
+                raise PlaylistRunError(RUN_ACTIVE)
+            self._save(RUN_FINISHED)
 
     def wait(self, timeout=None) -> bool:
         """True once the background thread has ended."""
@@ -326,7 +384,8 @@ class PlaylistRun:
             current_video=self._public(current) if current else None,
             current_step=self.current_step if current else "",
             pause_message=self._runner.pause_message, error=self._runner.error_msg,
-            videos=tuple(self._public(v) for v in videos))
+            videos=tuple(self._public(v) for v in videos),
+            unfinished=self.run_state in (RUN_RUNNING, RUN_INTERRUPTED) and not self._runner.is_active)
 
     def _public(self, video):
         """The video with the path of its history folder."""
@@ -334,6 +393,7 @@ class PlaylistRun:
 
     def _save(self, state):
         """Write the state file; a temporary file first, so a crash never leaves half of it."""
+        self.run_state = state
         self.folder.mkdir(parents=True, exist_ok=True)
         data = {"version": 1, "url": self.url, "title": self.title, "scope": self.scope, "state": state,
                 "videos": [vars(v) for v in self.videos]}
@@ -343,7 +403,7 @@ class PlaylistRun:
 
     def _set_status(self, position, status, **fields):
         self.videos[position] = replace(self.videos[position], status=status, **fields)
-        self._save("running")
+        self._save(RUN_RUNNING)
 
     # ------ Background thread ------
 
@@ -367,16 +427,33 @@ class PlaylistRun:
                             output_lock.release()  # the user may fix the cause in the single video mode
                             self._runner.pause(FAILED_IN_A_ROW)
                             TaskRunner.check_cancel()
+        except StopTask:
+            self._park()
+            raise
+        else:
             self.current_step = ""
-            self._save("finished")
+            self._save(RUN_FINISHED)
         finally:
             output_lock.release()
+
+    def _park(self):
+        """Move the work of the current video into its history folder; it waits for Tiếp tục."""
+        for position, video in enumerate(self.videos):
+            if video.status == RUNNING:
+                merge_output(self.folder / video.folder)
+                self.videos[position] = replace(video, status=WAITING, partial=True)
+        self.current_step = ""
+        self._save(RUN_INTERRUPTED)
 
     def _process(self, position):
         video = self.videos[position]
         self._set_status(position, RUNNING, failed_step="", error="")
         self.current_step = DOWNLOAD_STEP
-        self.ytdlp.download(video.url)
+        if video.partial:  # work of a stopped or crashed video; a video done before starts anew
+            merge_output(OUTPUT, source=self.folder / video.folder)
+            self.videos[position] = replace(self.videos[position], partial=False)
+        if not _has_media():
+            self.ytdlp.download(video.url)
         from core.pipeline import get_steps
         for label, step in (self.plan or get_steps)("all", self.scope == DUBBING):
             TaskRunner.check_cancel()
@@ -395,7 +472,7 @@ class PlaylistRun:
         step, self.current_step = self.current_step, ""
         destination = self.folder / self.videos[position].folder
         cleanup(destination=str(destination))
-        self._set_status(position, FAILED, failed_step=step, error=_short(error))
+        self._set_status(position, FAILED, failed_step=step, error=_short(error), partial=True)
         if OUTPUT.exists() and any(p != output_lock.LOCK_FILE for p in OUTPUT.iterdir()):
             raise RuntimeError(f"Some files of output/ could not be moved to {destination}")
 
@@ -413,3 +490,42 @@ _current: "PlaylistRun | None" = None
 def current_run() -> "PlaylistRun | None":
     """The Lượt chạy playlist of this process, shared by every browser tab, or None."""
     return _current
+
+
+def _has_media():
+    from core._1_ytdlp import find_media_file
+    try:
+        find_media_file(str(OUTPUT))
+    except Exception:
+        return False
+    return True
+
+
+def _unfinished_state_file() -> Path | None:
+    """The state file of an unfinished run in history/, the most recent one."""
+    found = []
+    for path in HISTORY.glob(f"*/{STATE_FILE}"):
+        try:
+            state = json.loads(path.read_text(encoding="utf-8")).get("state")
+        except (OSError, ValueError):
+            continue
+        if state in (RUN_RUNNING, RUN_INTERRUPTED):
+            found.append(path)
+    return max(found, key=lambda p: p.stat().st_mtime, default=None)
+
+
+def load_unfinished(ytdlp=None, plan=None) -> "PlaylistRun | None":
+    """The unfinished run: the one of this process, or the one of a state file in history/.
+
+    A run loaded from history/ becomes ``current_run()``, so every browser tab finds the same.
+    It does not run by itself.
+    """
+    global _current
+    with _lock:
+        if _current is not None and (_current._runner.is_active or _current.snapshot().unfinished):
+            return _current
+        path = _unfinished_state_file()
+        if path is None:
+            return None
+        _current = PlaylistRun._load(path, ytdlp=ytdlp, plan=plan)
+        return _current

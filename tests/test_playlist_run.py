@@ -95,8 +95,8 @@ def workspace(tmp_path, monkeypatch):
     monkeypatch.setattr(playlist_run, "_current", None)
     yield tmp_path
     run = playlist_run.current_run()
-    if run:  # the run has no Stop yet (#16); end the thread the way the task runner does
-        run._runner.stop()
+    if run:
+        run.stop()
         assert run.wait(3)
     assert TaskRunner._current is None
 

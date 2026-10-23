@@ -52,6 +52,8 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/playlist_run.py` | #14 — Lượt chạy playlist (ADR-0002): đọc Playlist bằng yt-dlp chế độ flat (`read_playlist`), `PlaylistRun` (`create`, `start`, `pause`, `resume`, `wait`, `snapshot`), lượt chạy chung của tiến trình (`current_run()`), file trạng thái `history/<playlist>/playlist_run.json`. Adapter `ytdlp` và `plan` thay được khi test |
 | `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
+| `core/playlist_run.py`, `core/st_utils/playlist_tab.py` (#16) | Stop (`run.stop()`: video dở chuyển vào thư mục history của nó, về `Chờ`, `output/` trống, file trạng thái `interrupted`), Tiếp tục (`load_unfinished()` tìm lượt dở trong `history/` khi mở app hoặc sau crash, không tự chạy; `run.start()` chuyển phần dở từ history về `output/`, không tải lại), Kết thúc lượt chạy (`run.end()`), một lượt mỗi lúc (`RUN_UNFINISHED`) |
+| `tests/test_playlist_run_stop.py` | Test #16: Stop giữa chừng, nạp lại từ file trạng thái rồi tiếp tục, crash, kết thúc lượt chạy |
 | `core/utils/output_lock.py` | #18 — khoá `output/.playlist_run.lock` (ghi PID) trong lúc Lượt chạy playlist đang chạy; `is_locked()` cho chế độ 1 video và API, bỏ (và xoá) khoá cũ sau crash: cùng tiến trình mà không còn lượt chạy sống, hoặc tiến trình ghi khoá đã chết |
 | `tests/test_output_lock.py` | Test #18: khoá lúc chạy, pause, lỗi, stop; khoá cũ sau crash; khoá của tiến trình khác; tự pause vì 2 lỗi liên tiếp (#15) thì nhả khoá, Resume chỉ lấy lại khi `output/` trống |
 | `tests/test_playlist_rerun.py` | Test #17: đọc lại Playlist đã chạy thì video `Xong` (theo video ID trong file trạng thái) được đánh dấu `done` và bỏ chọn sẵn trên tab; video `Xong` được tick lại thì làm lại vào đúng thư mục cũ; video mới không lấy trùng thư mục của video khác |
@@ -110,6 +112,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `st.py` (#14) | import `playlist_tab`; `main()` chia hai tab "Single video" (luồng a→b→c cũ, thụt lề vào `with`) và "Playlist" (`playlist_tab.render()`) | 1 + 9 |
 | `tests/test_ui_translations.py` (#14) | `DYNAMIC_T_ARGS` thêm `core/st_utils/playlist_tab.py` (`snapshot.current_step`, `message`; key được kiểm trong `tests/test_playlist_run.py`) | 1 |
 | `translations/*.json` (#14) | 26 key của tab Playlist và Lượt chạy playlist, đủ 7 ngôn ngữ | 26 × 7 |
+| `translations/*.json` (#16) | 4 key Stop/Tiếp tục/Kết thúc lượt chạy của tab Playlist, đủ 7 ngôn ngữ | 4 × 7 |
 | `tests/test_ui_translations.py` (#15) | `DYNAMIC_T_ARGS` của `playlist_tab.py` thêm `snapshot.pause_message`, `v.failed_step` (key được kiểm trong `tests/test_playlist_failures.py`, `tests/test_playlist_run.py`) | 1 |
 | `translations/*.json` (#15) | 3 key của video lỗi (`Failed step`, `Error`, `FAILED_IN_A_ROW`), đủ 7 ngôn ngữ | 3 × 7 |
 | `api.py` (#18) | `require_idle()` trả `409` khi `output_lock.is_locked()` (chặn `/input`, `/run`, `/archive`) | 3 |
