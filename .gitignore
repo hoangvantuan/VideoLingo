@@ -179,3 +179,5 @@ videolingo_*.log
 .env.*
 !.env.example
 vertex-sa.json
+# custom #22: the backup of scripts/upgrade_config.py
+config.before-upgrade.yaml

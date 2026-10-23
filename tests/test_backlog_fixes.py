@@ -4,7 +4,7 @@ import os
 import pandas as pd
 import pytest
 
-from tests import TEMPLATE_CONFIG
+from tests.template_config import TEMPLATE_CONFIG  # custom (#22)
 
 
 # ------------------------------------------------------------------
@@ -54,9 +54,9 @@ def test_unmatched_sentence_still_raises():
 ])
 def test_remerged_translation_uses_target_script_joiner(monkeypatch, source_language, parts, expected):
     import core._5_split_sub as split_sub
-    from core.utils import config_utils
+    from core.utils import config_utils  # custom (#22)
 
-    monkeypatch.setattr(config_utils, "CONFIG_PATH", str(TEMPLATE_CONFIG))  # get_align_prompt reads config.yaml
+    monkeypatch.setattr(config_utils, "CONFIG_PATH", str(TEMPLATE_CONFIG))  # custom (#22): get_align_prompt reads it
     align = [{f"target_part_{i + 1}": part} for i, part in enumerate(parts)]
     monkeypatch.setattr(split_sub, "ask_gpt", lambda *args, **kwargs: {"align": align})
     monkeypatch.setattr(split_sub, "load_key", lambda key: source_language if key.startswith("whisper") else None)

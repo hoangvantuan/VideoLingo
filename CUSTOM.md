@@ -42,8 +42,11 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `.env.example` | #21 — tên các biến key, giá trị trống |
 | `tests/test_env_keys.py` | Test #21: đọc/ghi tham chiếu `${VAR}`, `.env`, `GOOGLE_APPLICATION_CREDENTIALS` |
 | `tests/test_env_key_inputs.py` | Test #21: ô key của sidebar, ô key nhà cung cấp TTS, trình sửa profile (Streamlit `AppTest`) |
-| `tests/test_move_keys_to_env.py` | Test #21: script chuyển key (config tạm), `config.yaml` của repo và `.env.example` khớp tên biến |
-| `tests/test_tracked_config.py` | Test #22: `config.yaml` của repo không chứa key thật (chỉ in tên khóa); `.gitignore` track `config.yaml`, ignore `.env`, `config.backup.yaml` |
+| `tests/test_move_keys_to_env.py` | Test #21: script chuyển key (config tạm), `config.yaml` mẫu (`tests/fixtures/config.yaml`) và `.env.example` khớp tên biến |
+| `tests/test_tracked_config.py` | Test #22: `config.yaml` của repo không chứa key thật (chỉ in tên khóa); `.gitignore` track `config.yaml`, ignore `.env`, `config.backup.yaml`, `config.before-upgrade.yaml`; `tests/fixtures/config.yaml` có mọi khóa của `config.yaml` |
+| `tests/fixtures/config.yaml`, `tests/template_config.py` | #22 — bản mẫu `config.yaml` mà test đọc/chép (`TEMPLATE_CONFIG`), để test không phụ thuộc `config.yaml` của người vận hành. Sửa `config.yaml` mẫu thì làm mới: `git show HEAD:config.yaml > tests/fixtures/config.yaml` |
+| `scripts/upgrade_config.py` | #22 — script người dùng tự chạy: đặt giá trị của `config.yaml` đang dùng lên bản mẫu của repo (`--dry-run`, `--template`, sao lưu `config.before-upgrade.yaml` quyền 600) |
+| `tests/test_upgrade_config.py` | Test #22: script nâng cấp config (file tạm) |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -88,8 +91,9 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `config.yaml` (#21) | 11 ô key thành `${VAR:-}` (tên biến chuẩn, xem `.env.example`) | 11 |
 | `requirements.txt` (#21) | `python-dotenv` | 2 |
 | `tests/test_fish_audio_tts.py` (#21) | `load_key` giả nhận thêm `resolve=` | 1 |
-| `.gitignore` (#22) | bỏ ignore `config.yaml` (file được track lại, chỉ chứa `${VAR}`); ignore `.env.*` trừ `.env.example`, ignore `vertex-sa.json` (`.env`, `config.backup.yaml` vẫn ignore) | 4 |
-| `.dockerignore` (#22) | `config.yaml` không còn bị loại khỏi image (cần cho container); loại `config.backup.yaml` (có thể chứa key thật) | 2 |
+| `.gitignore` (#22) | bỏ ignore `config.yaml` (file được track lại, chỉ chứa `${VAR}`); ignore `.env.*` trừ `.env.example`, ignore `vertex-sa.json`, `config.before-upgrade.yaml` (`.env`, `config.backup.yaml` vẫn ignore) | 6 |
+| `.dockerignore` (#22) | `config.yaml` không còn bị loại khỏi image (cần cho container); loại `config.backup.yaml`, `config.before-upgrade.yaml` (có thể chứa key thật) | 3 |
+| `tests/test_backlog_fixes.py`, `tests/test_dependencies.py`, `tests/test_language_support.py`, `tests/test_audio_extract_quality.py`, `tests/test_pipeline_integration.py` (#22) | đọc/chép `TEMPLATE_CONFIG` (`tests/fixtures/config.yaml`) thay cho `config.yaml` của repo; test ghép phụ đề trỏ `CONFIG_PATH` vào bản mẫu | 3 + 3 + 2 + 2 + 2 |
 | `config.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
 
 ## Cấu hình F1 (Soniox)
@@ -367,7 +371,11 @@ Trước #22, `config.yaml` không được track (chứa key thật) và một 
 
 1. **Trước khi pull/merge**: đổi tên `config.yaml` cũ, ví dụ `mv config.yaml config.local.yaml` (git từ chối ghi đè file chưa track khi checkout bản có `config.yaml`). Không commit file này.
 2. Pull/merge bản có #22. `config.yaml` mới là bản mẫu của repo.
-3. Đưa giá trị của mình vào: `mv config.local.yaml config.yaml` (ghi đè bản mẫu), rồi chạy `python scripts/move_keys_to_env.py --dry-run` và `python scripts/move_keys_to_env.py` để chuyển mọi key sang `.env` (xem [Key trong .env](#key-trong-env)). Khóa mới của repo mà `config.yaml` cũ chưa có thì đặt trên sidebar (xem [Cấu hình trên giao diện (F7–F10)](#cấu-hình-trên-giao-diện-f7f10)).
+3. Đưa giá trị của mình vào: `mv config.local.yaml config.yaml` (ghi đè bản mẫu), rồi chạy `python scripts/upgrade_config.py --dry-run` và `python scripts/upgrade_config.py`: kết quả có đủ khóa, thứ tự và ghi chú của bản mẫu (`git show HEAD:config.yaml`) với giá trị của mình ở mọi khóa mình đã có; khóa mới của repo lấy giá trị mặc định (in tên: `added from the template: ...`); khóa chỉ có trong config của mình được giữ và in tên (`kept, not in the template: ...`). Script chỉ in tên khóa, không in giá trị, và chép `config.yaml` sang `config.before-upgrade.yaml` (quyền 600, bị ignore; có thể chứa key) trước khi ghi. Sau đó chạy `python scripts/move_keys_to_env.py --dry-run` và `python scripts/move_keys_to_env.py` để chuyển mọi key sang `.env` (xem [Key trong .env](#key-trong-env)).
+   - `HEAD:config.yaml` chỉ là bản mẫu khi chưa commit giá trị của mình vào `config.yaml`; nếu đã commit thì truyền bản mẫu bằng `--template FILE` (ví dụ `git show origin/main:config.yaml > /tmp/template.yaml`).
+   - Chạy lại `upgrade_config.py` sau mỗi lần merge làm `config.yaml` mẫu có khóa mới. `config.before-upgrade.yaml` còn từ lần trước thì script dừng, không ghi đè: kiểm tra rồi xóa file đó.
 4. Chạy `pytest tests/test_tracked_config.py`: phải pass (chỉ in tên khóa còn chứa key, không in giá trị). Không pass thì chuyển hoặc xóa key ở các khóa được nêu, chạy lại.
 5. Xem `git diff config.yaml`: chỉ còn giá trị cấu hình và tham chiếu `${VAR}`, không có key. Khi đó mới commit `config.yaml`.
-6. Kiểm tra xong thì xóa `config.backup.yaml` (chứa key thật, đã bị ignore).
+6. Kiểm tra xong thì xóa `config.backup.yaml` và `config.before-upgrade.yaml` (có thể chứa key thật, đã bị ignore).
+
+Test không đọc `config.yaml` của người vận hành: test cần giá trị mặc định hoặc cấu trúc mẫu đọc `tests/fixtures/config.yaml` (`tests/template_config.py`); chỉ `tests/test_tracked_config.py` đọc `config.yaml` của repo (không có key thật, và có đủ khóa của bản mẫu test). Sửa `config.yaml` mẫu thì làm mới bản mẫu test: `git show HEAD:config.yaml > tests/fixtures/config.yaml`.

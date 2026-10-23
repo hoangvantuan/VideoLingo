@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 from core.utils import config_utils
-from tests import TEMPLATE_CONFIG
+from tests.template_config import TEMPLATE_CONFIG
 
 ROOT = Path(__file__).resolve().parents[1]
 SECRET_NAME = re.compile(r"key|token|secret", re.IGNORECASE)
@@ -39,7 +39,7 @@ def test_the_tracked_config_holds_no_real_key():
 def test_git_tracks_config_yaml_and_ignores_the_files_holding_keys():
     ignored = (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
     assert "config.yaml" not in ignored
-    assert {".env", "config.backup.yaml"} <= set(ignored)
+    assert {".env", "config.backup.yaml", "config.before-upgrade.yaml"} <= set(ignored)
 
 
 def _key_paths(mapping, prefix=""):

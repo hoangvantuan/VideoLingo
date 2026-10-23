@@ -9,7 +9,7 @@ from streamlit.testing.v1 import AppTest
 
 from core.utils import config_utils
 from core.utils.config_utils import load_key, load_key_or
-from tests import TEMPLATE_CONFIG
+from tests.template_config import TEMPLATE_CONFIG
 
 TRACKED = TEMPLATE_CONFIG  # the template, not the operator's config.yaml (#22)
 # keys deleted from the temporary config.yaml, as in a config.yaml written before them

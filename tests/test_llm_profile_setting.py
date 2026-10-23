@@ -7,7 +7,7 @@ from streamlit.testing.v1 import AppTest
 
 from core.utils import config_utils
 from core.utils.config_utils import load_key
-from tests import TEMPLATE_CONFIG
+from tests.template_config import TEMPLATE_CONFIG
 
 
 def _app():

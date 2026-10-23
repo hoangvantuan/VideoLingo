@@ -11,7 +11,7 @@ import wave
 
 import pytest
 
-from tests import TEMPLATE_CONFIG
+from tests.template_config import TEMPLATE_CONFIG  # custom (#22)
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('installer', ROOT / 'installer.py')
@@ -578,7 +578,7 @@ def test_mai_sidebar_adds_credentials_to_an_older_config(monkeypatch, tmp_path):
     from core.utils import config_utils
 
     config = tmp_path / 'config.yaml'
-    data = config_utils.yaml.load(TEMPLATE_CONFIG.read_text(encoding='utf-8'))
+    data = config_utils.yaml.load(TEMPLATE_CONFIG.read_text(encoding='utf-8'))  # custom (#22)
     data['whisper'].pop('mai_api_key', None)
     data['whisper'].pop('mai_region', None)
     with config.open('w', encoding='utf-8') as output:
@@ -602,7 +602,7 @@ def test_mai_sidebar_switches_to_openrouter_on_older_config(monkeypatch, tmp_pat
     from core.utils import config_utils
 
     config = tmp_path / 'config.yaml'
-    data = config_utils.yaml.load(TEMPLATE_CONFIG.read_text(encoding='utf-8'))
+    data = config_utils.yaml.load(TEMPLATE_CONFIG.read_text(encoding='utf-8'))  # custom (#22)
     data['whisper'].pop('mai_provider', None)
     data['whisper'].pop('mai_openrouter_api_key', None)
     with config.open('w', encoding='utf-8') as output:

@@ -11,7 +11,7 @@ import pytest
 from dotenv import dotenv_values
 
 from core.utils import config_utils
-from tests import TEMPLATE_CONFIG
+from tests.template_config import TEMPLATE_CONFIG
 
 SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "move_keys_to_env.py"
 SECRETS = {"llm": "sk-llm-0123456789", "soniox": "sx-soniox-0123456789", "fish": "fa-fish-0123456789",

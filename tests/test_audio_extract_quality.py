@@ -8,7 +8,7 @@ import subprocess
 
 import pytest
 
-from tests import TEMPLATE_CONFIG
+from tests.template_config import TEMPLATE_CONFIG  # custom (#22)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -190,5 +190,5 @@ def test_optional_config_key_falls_back_without_error():
 
 def test_shipped_config_restores_v2_extraction_defaults():
     yaml = pytest.importorskip('yaml')
-    config = yaml.safe_load(TEMPLATE_CONFIG.read_text(encoding='utf-8'))
+    config = yaml.safe_load(TEMPLATE_CONFIG.read_text(encoding='utf-8'))  # custom (#22)
     assert config['audio'] == {'raw_sample_rate': 32000, 'raw_bitrate': '128k'}
