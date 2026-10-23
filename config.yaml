@@ -217,7 +217,7 @@ vertex:
 # Vertex AI dubbing (custom): Cloud Text-to-Speech
 vertex_tts:
   # Cloud TTS voice name; empty = vi-VN-Chirp3-HD-Aoede
-  voice: 'vi-VN-Chirp3-HD-Charon'
+  voice: 'vi-VN-Chirp3-HD-Achernar'
   # BCP-47 code of the dubbing text
   language: 'vi-VN'
   # Speaking rate from 0.25 to 2.0
