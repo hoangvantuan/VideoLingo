@@ -125,7 +125,7 @@ def test_configured_pipeline_download_failure_still_fails():
 def project(tmp_path, monkeypatch):
     """A working directory with config.yaml (auto -> detected language) and cleaned_chunks.xlsx."""
     def make(language, words):
-        text = (ROOT / "config.yaml").read_text(encoding="utf-8")
+        text = (ROOT / "config.example.yaml").read_text(encoding="utf-8")  # custom: config.yaml is untracked
         text = text.replace("  language: 'en'\n  detected_language: 'en'",
                             f"  language: 'auto'\n  detected_language: '{language}'", 1)
         assert f"detected_language: '{language}'" in text
