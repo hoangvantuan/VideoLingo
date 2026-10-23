@@ -38,7 +38,8 @@ state (``running`` or ``finished``) and every video with its status and folder. 
 after every change of a Trạng thái video.
 
 While the run runs it holds the lock of ``output/`` (``core.utils.output_lock``), which the
-single video mode and the API respect; the lock goes when the background thread ends.
+single video mode and the API respect; the lock goes when the background thread ends, and while
+the run is paused by ``FAILED_IN_A_ROW``. Resume after that takes it again, once ``output/`` is empty.
 
 Settings are read from config.yaml at each step, as in ADR-0002: a change in the sidebar
 applies to the following steps and videos.
@@ -298,7 +299,13 @@ class PlaylistRun:
         self._runner.pause()
 
     def resume(self):
-        self._runner.resume()
+        with _lock:
+            if self._runner.state == "paused" and not output_lock.LOCK_FILE.exists():
+                # auto-pause released output/: the single video mode may have used it meanwhile
+                if OUTPUT.exists() and any(OUTPUT.iterdir()):
+                    raise PlaylistRunError(OUTPUT_NOT_EMPTY)
+                output_lock.acquire()
+            self._runner.resume()
 
     def wait(self, timeout=None) -> bool:
         """True once the background thread has ended."""
@@ -356,6 +363,8 @@ class PlaylistRun:
                         self._fail(position, error)
                         failures += 1
                         if failures >= FAILURES_TO_PAUSE:
+                            # first: a Resume that follows the pause must find the lock gone
+                            output_lock.release()  # the user may fix the cause in the single video mode
                             self._runner.pause(FAILED_IN_A_ROW)
                             TaskRunner.check_cancel()
             self.current_step = ""

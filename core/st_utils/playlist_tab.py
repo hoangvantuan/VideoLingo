@@ -49,7 +49,12 @@ def _run_panel():
         else:
             st.warning(f"⏸️ {t('Paused')}")
         if st.button(f"▶️ {t('Resume')}", key="playlist_resume", width="stretch"):
-            run.resume()
+            try:
+                run.resume()
+            except playlist_run.PlaylistRunError as e:
+                message = str(e)
+                st.error(t(message))
+                return
             st.rerun()
     elif snapshot.state == "running":
         if st.button(f"⏸️ {t('Pause')}", key="playlist_pause", width="stretch"):

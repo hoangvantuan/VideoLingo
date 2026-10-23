@@ -53,9 +53,9 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_playlist_run.py` | Test #14: module Lượt chạy playlist với yt-dlp giả, pipeline giả, thư mục tạm |
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
 | `core/utils/output_lock.py` | #18 — khoá `output/.playlist_run.lock` (ghi PID) trong lúc Lượt chạy playlist đang chạy; `is_locked()` cho chế độ 1 video và API, bỏ (và xoá) khoá cũ sau crash: cùng tiến trình mà không còn lượt chạy sống, hoặc tiến trình ghi khoá đã chết |
-| `tests/test_output_lock.py` | Test #18: khoá lúc chạy, pause, lỗi, stop; khoá cũ sau crash; khoá của tiến trình khác |
+| `tests/test_output_lock.py` | Test #18: khoá lúc chạy, pause, lỗi, stop; khoá cũ sau crash; khoá của tiến trình khác; tự pause vì 2 lỗi liên tiếp (#15) thì nhả khoá, Resume chỉ lấy lại khi `output/` trống |
 | `tests/test_playlist_rerun.py` | Test #17: đọc lại Playlist đã chạy thì video `Xong` (theo video ID trong file trạng thái) được đánh dấu `done` và bỏ chọn sẵn trên tab; video `Xong` được tick lại thì làm lại vào đúng thư mục cũ; video mới không lấy trùng thư mục của video khác |
-| `core/playlist_run.py`, `core/st_utils/playlist_tab.py` | #15 — video lỗi không chặn lượt chạy: video `Lỗi` kèm bước hỏng và lỗi ngắn (snapshot, file trạng thái, cột trên tab), phần dở chuyển vào history của video rồi chạy tiếp; 2 video lỗi liên tiếp thì tự pause với `FAILED_IN_A_ROW` |
+| `core/playlist_run.py`, `core/st_utils/playlist_tab.py` | #15 — video lỗi không chặn lượt chạy: video `Lỗi` kèm bước hỏng và lỗi ngắn (snapshot, file trạng thái, cột trên tab), phần dở chuyển vào history của video rồi chạy tiếp; 2 video lỗi liên tiếp thì tự pause với `FAILED_IN_A_ROW` và nhả khoá `output/` (#18); Resume lấy lại khoá, báo `OUTPUT_NOT_EMPTY` nếu `output/` có file khác |
 | `tests/test_playlist_failures.py` | Test #15: pipeline giả ném lỗi ở bước chỉ định: một video lỗi rồi chạy tiếp, lỗi khi tải, 2 lỗi liên tiếp tự pause, video thành công xen giữa đặt lại bộ đếm |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |

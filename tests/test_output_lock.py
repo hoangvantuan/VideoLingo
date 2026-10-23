@@ -3,10 +3,13 @@
 Same fakes as tests/test_playlist_run.py: no network, no models, a temporary folder.
 """
 import os
+import re
 import subprocess
 import sys
 import threading
 from pathlib import Path
+
+import pytest
 
 from core import playlist_run
 from core.utils import output_lock
@@ -119,3 +122,30 @@ def test_an_unreadable_lock_is_ignored(workspace):
     write_lock("garbage")
     assert not output_lock.is_locked()
 
+
+def test_a_run_paused_by_failures_in_a_row_drops_the_lock_and_resume_takes_it_back(workspace):
+    from tests.test_playlist_failures import FailingPipeline, wait_for
+
+    seen = []
+
+    class Pipeline(FailingPipeline):
+        def _maybe_fail(self):
+            seen.append(output_lock.is_locked())
+            super()._maybe_fail()
+
+    run, _ytdlp = start(["a1", "c3", "f6"], pipeline=Pipeline({"First intro", "Second talk"}))
+    wait_for(run, "paused")
+    assert not output_lock.is_locked() and not output_lock.LOCK_FILE.exists()
+
+    Path("output").mkdir(exist_ok=True)
+    Path("output/other.mp4").write_text("x")  # the single video mode used output/ meanwhile
+    with pytest.raises(playlist_run.PlaylistRunError, match=re.escape(playlist_run.OUTPUT_NOT_EMPTY)):
+        run.resume()
+    assert run.snapshot().state == "paused" and not output_lock.LOCK_FILE.exists()
+
+    Path("output/other.mp4").unlink()
+    run.resume()
+    snapshot = finish(run)
+
+    assert snapshot.state == "completed" and seen == [True, True, True]
+    assert not output_lock.is_locked() and not output_lock.LOCK_FILE.exists()
