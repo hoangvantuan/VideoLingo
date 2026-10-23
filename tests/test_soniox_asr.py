@@ -1,7 +1,12 @@
 """Contracts at the Soniox transport and response boundary (custom fork)."""
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
+
+import httpx
+from soniox.errors import SonioxInvalidRequestError, SonioxRateLimitError, SonioxServerError
+from soniox.types import TranscriptionTranscript
 
 from core.asr_backend import soniox_asr
 
@@ -55,78 +60,117 @@ class SonioxConversionTests(unittest.TestCase):
             token("こん", 200, 300, language="ja"), token("にちは", 300, 500, language="ja"),
         ]}
         self.assertEqual(soniox_asr.soniox2whisper(transcript, "auto", ["ja"])["language"], "ja")
-        auto = soniox_asr.transcription_config("auto", "f1")
-        self.assertEqual(auto["language_hints"], ["en", "ja"])
-        self.assertTrue(auto["enable_language_identification"])
-        fixed = soniox_asr.transcription_config("ja", "f1")
-        self.assertEqual(fixed["language_hints"], ["ja"])
-        self.assertNotIn("enable_language_identification", fixed)
-        self.assertTrue(fixed["enable_speaker_diarization"])
+        auto = soniox_asr.transcription_config("auto")
+        self.assertEqual(auto.language_hints, ["en", "ja"])
+        self.assertTrue(auto.enable_language_identification)
+        fixed = soniox_asr.transcription_config("ja")
+        self.assertEqual(fixed.language_hints, ["ja"])
+        self.assertIsNone(fixed.enable_language_identification)
+        self.assertTrue(fixed.enable_speaker_diarization)
 
 
-class Reply:
-    def __init__(self, status, body=None):
-        self.status_code = status
-        self.ok = 200 <= status < 300
-        self.body = body or {}
-        self.content = b"x"
-        self.text = str(self.body)
-
-    def json(self):
-        return self.body
+def api_error(error_class, status):
+    response = httpx.Response(status, request=httpx.Request("GET", "https://api.soniox.com/v1"))
+    return error_class(f"HTTP {status}", response=response)
 
 
-class FakeSession:
+class FakeClient:
+    """Stands in for soniox.SonioxClient; each API call takes the next scripted reply."""
+
     def __init__(self, replies):
         self.replies = list(replies)
-        self.headers = {}
         self.calls = []
         self.deleted = []
+        self.closed = False
+        self.files = SimpleNamespace(upload=self.call("upload"),
+                                     delete_if_exists=lambda file_id: self.deleted.append(("file", file_id)))
+        self.stt = SimpleNamespace(create=self.call("create"), get=self.call("get"),
+                                   get_transcript=self.call("get_transcript"),
+                                   delete_if_exists=lambda tr_id: self.deleted.append(("transcription", tr_id)))
 
-    def request(self, method, url, **kwargs):
-        self.calls.append((method, url))
-        return self.replies.pop(0)
-
-    def delete(self, url, **kwargs):
-        self.deleted.append(url)
+    def call(self, name):
+        def reply(*args, **kwargs):
+            self.calls.append((name, args, kwargs))
+            item = self.replies.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+        return reply
 
     def close(self):
-        pass
+        self.closed = True
+
+
+def transcription(status, error_message=None):
+    return SimpleNamespace(id="tr1", status=status, error_message=error_message)
+
+
+def transcript(*tokens):
+    return TranscriptionTranscript(id="tr1", text="", tokens=list(tokens))
 
 
 class SonioxTransportTests(unittest.TestCase):
-    def run_transcribe(self, session):
-        config = {"whisper.language": "en", "language_split_without_space": ["ja"]}
-        with patch.object(soniox_asr.requests, "Session", return_value=session), patch.object(
+    def run_transcribe(self, client, language="en"):
+        config = {"whisper.language": language, "language_split_without_space": ["ja"]}
+        with patch.object(soniox_asr, "SonioxClient", return_value=client) as make_client, patch.object(
             soniox_asr, "audio_slice_wav", return_value=b"wav"
         ), patch.object(soniox_asr, "load_key", side_effect=config.__getitem__), patch.object(
             soniox_asr, "load_key_or", side_effect=lambda key, default: config.get(key, default)
         ), patch.object(soniox_asr.time, "sleep"), patch.dict(
             soniox_asr.os.environ, {"SONIOX_API_KEY": "secret"}
         ):
-            return soniox_asr.transcribe_audio_soniox("raw.mp3", "vocal.mp3", 10, 20)
+            result = soniox_asr.transcribe_audio_soniox("raw.mp3", "vocal.mp3", 10, 20)
+        self.assertEqual(make_client.call_args.kwargs["api_key"], "secret")
+        return result
 
     def test_success_retries_transient_errors_and_cleans_up(self):
-        session = FakeSession([
-            Reply(429), Reply(200, {"id": "file1"}),
-            Reply(200, {"id": "tr1"}),
-            Reply(200, {"status": "processing"}), Reply(503), Reply(200, {"status": "completed"}),
-            Reply(200, {"tokens": [token("Hi", 0, 100)]}),
+        client = FakeClient([
+            api_error(SonioxRateLimitError, 429), SimpleNamespace(id="file1"),
+            httpx.ConnectError("offline"), SimpleNamespace(id="tr1"),
+            transcription("processing"), api_error(SonioxServerError, 503), transcription("completed"),
+            transcript(token("Hi", 0, 100)),
         ])
-        result = self.run_transcribe(session)
-        self.assertEqual(session.headers["Authorization"], "Bearer secret")
+        result = self.run_transcribe(client)
         self.assertEqual(result["segments"][0]["words"][0]["start"], 10.0)
-        self.assertEqual(session.deleted, [f"{soniox_asr.API_BASE}/transcriptions/tr1",
-                                           f"{soniox_asr.API_BASE}/files/file1"])
+        [upload] = [c for c in client.calls if c[0] == "upload"][-1:]
+        self.assertEqual(upload[1], (b"wav",))
+        [create] = [c for c in client.calls if c[0] == "create"][-1:]
+        self.assertEqual(create[2]["model"], soniox_asr.MODEL)
+        self.assertEqual(create[2]["file_id"], "file1")
+        self.assertEqual(create[2]["config"].language_hints, ["en"])
+        self.assertTrue(create[2]["config"].enable_speaker_diarization)
+        self.assertEqual(client.deleted, [("transcription", "tr1"), ("file", "file1")])
+        self.assertTrue(client.closed)
 
     def test_failed_transcription_still_deletes_remote_resources(self):
-        session = FakeSession([
-            Reply(200, {"id": "file1"}), Reply(200, {"id": "tr1"}),
-            Reply(200, {"status": "error", "error_message": "bad audio"}),
+        client = FakeClient([
+            SimpleNamespace(id="file1"), SimpleNamespace(id="tr1"),
+            transcription("error", "bad audio"),
         ])
         with self.assertRaisesRegex(RuntimeError, "bad audio"):
-            self.run_transcribe(session)
-        self.assertEqual(len(session.deleted), 2)
+            self.run_transcribe(client)
+        self.assertEqual(client.deleted, [("transcription", "tr1"), ("file", "file1")])
+        self.assertTrue(client.closed)
+
+    def test_client_error_is_not_retried(self):
+        client = FakeClient([api_error(SonioxInvalidRequestError, 400)])
+        with self.assertRaisesRegex(RuntimeError, "HTTP 400"):
+            self.run_transcribe(client)
+        self.assertEqual(len(client.calls), 1)
+        self.assertEqual(client.deleted, [])
+
+    def test_cancel_while_polling_stops_and_cleans_up(self):
+        client = FakeClient([SimpleNamespace(id="file1"), SimpleNamespace(id="tr1"),
+                             transcription("processing")])
+
+        def check_cancel():
+            # The user cancels once Soniox reports the job is still processing.
+            if any(name == "get" for name, *_ in client.calls):
+                raise KeyboardInterrupt("cancelled")
+        with patch.object(soniox_asr, "check_cancel", side_effect=check_cancel), \
+                self.assertRaises(KeyboardInterrupt):
+            self.run_transcribe(client)
+        self.assertEqual(client.deleted, [("transcription", "tr1"), ("file", "file1")])
 
     def test_missing_key_is_rejected(self):
         with patch.dict(soniox_asr.os.environ, {"SONIOX_API_KEY": ""}), patch.object(

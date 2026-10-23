@@ -124,7 +124,7 @@ def page_setting():
         unsafe_allow_html=True,
     )
 
-    with st.expander(t("LLM Configuration"), expanded=True):
+    def custom_llm_inputs():  # custom: F7, the upstream api inputs apply only to the Profile custom
         config_input(t("API_KEY"), "api.key", placeholder=t("Enter your API key"))
         config_input(
             t("BASE_URL"),
@@ -209,6 +209,12 @@ def page_setting():
         if llm_support_json != load_key("api.llm_support_json"):
             update_key("api.llm_support_json", llm_support_json)
             st.rerun()
+    with st.expander(t("LLM Configuration"), expanded=True):  # custom: F7
+        from core.st_utils import llm_profile_setting  # custom
+        if llm_profile_setting.render():  # custom
+            custom_llm_inputs()  # custom
+        from core.st_utils import llm_profile_editor  # custom: F7/F8 profile editor and vertex: section (#11)
+        llm_profile_editor.render()  # custom
     with st.expander(t("Subtitles Settings"), expanded=True):
         c1, c2 = st.columns(2)
         with c1:
@@ -263,7 +269,10 @@ def page_setting():
         if runtime == "elevenlabs":
             config_input(t("ElevenLabs API"), "whisper.elevenlabs_api_key")
         elif runtime == "soniox":  # custom: SONIOX_API_KEY env var takes precedence
-            config_input("Soniox API", "whisper.soniox_api_key")
+            soniox_key = st.text_input("Soniox API", value=load_key("whisper.soniox_api_key"), type="password",  # custom: F1, masked
+                                       key="whisper_soniox_api_key")  # custom: stable id, see tests/test_consecutive_edits.py
+            if soniox_key != load_key("whisper.soniox_api_key"):  # custom
+                update_key("whisper.soniox_api_key", soniox_key)  # custom
         elif runtime == "mai":
             from core.asr_backend.mai_asr import detect_region
 
@@ -400,6 +409,7 @@ def page_setting():
             "sf_cosyvoice2": t("SiliconFlow CosyVoice2"),
             "f5tts": t("F5-TTS"),
             "soniox_tts": "Soniox TTS",  # custom
+            "vertex_tts": "Vertex AI TTS",  # custom: F9
         }
         from core.st_utils.tts_settings import select_tts_method
         select_tts = select_tts_method(tts_method_labels)
@@ -493,6 +503,15 @@ def page_setting():
         elif select_tts == "soniox_tts":  # custom
             from core.st_utils import soniox_tts_settings
             soniox_tts_settings.render()
+
+        elif select_tts == "vertex_tts":  # custom: F9
+            from core.st_utils import vertex_tts_settings  # custom
+            vertex_tts_settings.render()  # custom
+
+        from core.st_utils import original_volume_setting  # custom: F10
+        original_volume_setting.render()  # custom
+    from core.st_utils import advanced_settings  # custom: #12, every other key in the "Nâng cao" expander
+    advanced_settings.render()  # custom
 
 
 

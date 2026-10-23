@@ -11,12 +11,43 @@ display_language: "zh-CN"
 
 # API settings
 api:
+  # *Custom (F7): active LLM profile, a name from llm_profiles; '' = the custom profile (this api: section)
+  profile: ''
   key: 'YOUR_API_KEY'
   base_url: 'https://api.openlux.ai/v1'
   model: 'gpt-6-luna'
   llm_support_json: false
 # *Number of LLM multi-threaded accesses, set to 1 if using local LLM
 max_workers: 4
+# *Custom (F7): named LLM profiles for the Translate stage, chosen by api.profile. See CUSTOM.md "Cấu hình F7".
+llm_profiles:
+  openrouter-free:
+    # *Provider; openrouter has a default base_url, other providers need base_url
+    provider: openrouter
+    # *Required for providers other than openrouter, e.g. 'https://llm.example.com/v1'
+    # base_url: ''
+    # *Model name sent to the provider
+    model: 'deepseek/deepseek-chat-v3.1:free'
+    # *Environment variable holding the key, read before api_key
+    api_key_env: 'OPENROUTER_API_KEY'
+    # *Fallback key; leave empty and use the environment variable
+    api_key: ''
+    # *Optional overrides; a missing key uses api.llm_support_json, and reasoning_effort is then not sent
+    llm_support_json: false
+    max_workers: 1
+  # *Custom (F8): Gemini on Vertex AI, no key: Google credential + vertex.project. JSON mode is on by default
+  gemini-lite:
+    # *Vertex provider: no api_key/base_url, the URL is built from the vertex: section
+    provider: vertex
+    # *Vertex model names need the google/ prefix
+    model: 'google/gemini-3.5-flash-lite'
+  gemini-flash:
+    # *Vertex provider, like gemini-lite
+    provider: vertex
+    # *Larger Gemini model, google/ prefix
+    model: 'google/gemini-3.8-flash'
+    # *Caps thinking tokens, billed as output
+    reasoning_effort: low
 # *Custom: cap on parallel TTS requests (0 = same as max_workers). VieNeu-TTS serves 1 stream.
 tts_max_workers: 0
 
@@ -115,7 +146,11 @@ pause_after_translate: false
 
 ## ======================== Dubbing Settings ======================== ##
 # TTS selection [edge_tts, openai_tts, fish_audio, f5tts, sf_fish_tts, sf_cosyvoice2, gpt_sovits, custom_tts]
+# *Custom: also soniox_tts, vertex_tts
 tts_method: 'edge_tts'
+# *Custom F10: Thuyết minh — Âm lượng gốc, level (0–1) of the video's own audio kept under the dubbed voice.
+# > 0 replaces the Demucs background track; 0 keeps the upstream merge.
+original_volume: 0.25
 
 # SiliconFlow FishTTS
 sf_fish_tts:
@@ -170,6 +205,25 @@ soniox_tts:
   speed: 1.0
   # *TTS model
   model: 'tts-rt-v2'
+
+# Google Cloud (custom), shared by the Vertex LLM profiles and vertex_tts. Credential: the service-account
+# key JSON in GOOGLE_APPLICATION_CREDENTIALS, see "Setup Google Cloud" in CUSTOM.md
+vertex:
+  # Project ID billed for the requests; empty = the project of the credential
+  project: ''
+  # *Location of the Gemini endpoint
+  location_llm: 'global'
+
+# Vertex AI dubbing (custom): Cloud Text-to-Speech
+vertex_tts:
+  # Cloud TTS voice name; empty = vi-VN-Chirp3-HD-Aoede
+  voice: ''
+  # BCP-47 code of the dubbing text
+  language: 'vi-VN'
+  # Speaking rate from 0.25 to 2.0
+  speed: 1.0
+  # *Parallel TTS requests while using vertex_tts; replaces max_workers and tts_max_workers
+  max_workers: 4
 
 # SoVITS configuration
 gpt_sovits:
