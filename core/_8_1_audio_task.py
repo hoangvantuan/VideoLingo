@@ -19,7 +19,7 @@ def check_len_then_trim(text, duration):
     global ESTIMATOR
     if ESTIMATOR is None:
         ESTIMATOR = init_estimator()
-    estimated_duration = estimate_duration(text, ESTIMATOR) / speed_factor['max']
+    estimated_duration = estimate_duration(text, ESTIMATOR) / speed_factor['accept']
     
     console.print(f"Subtitle text: {text}, "
                   f"[bold green]Estimated reading duration: {estimated_duration:.2f} seconds[/bold green]")

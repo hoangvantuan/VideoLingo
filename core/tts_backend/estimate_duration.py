@@ -8,19 +8,21 @@ class AdvancedSyllableEstimator:
         # Most words are handled by syllables. g2p_en needs NLTK corpora that
         # are not installed with its Python package, so load it only if needed.
         self.g2p_en = None
-        self.duration_params = {'en': 0.225, 'zh': 0.21, 'ja': 0.21, 'fr': 0.22, 'es': 0.22, 'ko': 0.21, 'default': 0.22}
+        self.duration_params = {'en': 0.225, 'zh': 0.21, 'ja': 0.21, 'fr': 0.22, 'es': 0.22, 'ko': 0.21, 'vi': 0.28, 'default': 0.22}
         self.lang_patterns = {
             'zh': r'[\u4e00-\u9fff]', 'ja': r'[\u3040-\u309f\u30a0-\u30ff]',
+            'vi': r'[ăâđêôơưĂÂĐÊÔƠƯàảãáạằẳẵắặầẩẫấậèẻẽéẹềểễếệìỉĩíịòỏõóọồổỗốộờởỡớợùủũúụừửữứựỳỷỹýỵÀẢÃÁẠẰẲẴẮẶẦẨẪẤẬÈẺẼÉẸỀỂỄẾỆÌỈĨÍỊÒỎÕÓỌỒỔỖỐỘỜỞỠỚỢÙỦŨÚỤỪỬỮỨỰỲỶỸÝỴ]',
             'fr': r'[àâçéèêëîïôùûüÿœæ]', 'es': r'[áéíóúñ¿¡]', 'en': r'[a-zA-Z]+', 'ko': r'[\uac00-\ud7af\u1100-\u11ff]'}
-        self.lang_joiners = {'zh': '', 'ja': '', 'en': ' ', 'fr': ' ', 'es': ' ', 'ko': ' '}
+        self.lang_joiners = {'zh': '', 'ja': '', 'en': ' ', 'fr': ' ', 'es': ' ', 'ko': ' ', 'vi': ' '}
         self.punctuation = {
             'mid': r'[，；：,;、]+', 'end': r'[。！？.!?]+', 'space': r'\s+',
             'pause': {'space': 0.15, 'default': 0.1}
         }
 
     def estimate_duration(self, text: str, lang: Optional[str] = None) -> float:
+        lang = lang or self._detect_language(text)
         syllable_count = self.count_syllables(text, lang)
-        return syllable_count * self.duration_params.get(lang or 'default')
+        return syllable_count * self.duration_params.get(lang or 'default', self.duration_params['default'])
 
     def count_syllables(self, text: str, lang: Optional[str] = None) -> int:
         if not text.strip(): return 0
@@ -40,6 +42,9 @@ class AdvancedSyllableEstimator:
             text = re.sub(r'[きぎしじちぢにひびぴみり][ょゅゃ]', 'X', text)
             text = re.sub(r'[っー]', '', text)
             return len(re.findall(r'[\u3040-\u309f\u30a0-\u30ff\u4e00-\u9fff]', text))
+        elif lang == 'vi':
+            tokens = re.findall(r'[A-Z]{2,}|\d+|[^\W\d_]+', text)
+            return max(1, sum(len(t) if re.fullmatch(r'[A-Z]{2,}|\d+', t) else 1 for t in tokens))
         elif lang in ('fr', 'es'):
             text = re.sub(r'e\b', '', text.lower()) if lang == 'fr' else text.lower()
             return max(1, len(re.findall(f'[{vowels_map[lang]}]+', text)))
@@ -50,6 +55,9 @@ class AdvancedSyllableEstimator:
     def _count_english_syllables(self, text: str) -> int:
         total = 0
         for word in text.strip().split():
+            if re.fullmatch(r'[A-Z]{2,}|\d+', word):
+                total += len(word)
+                continue
             try:
                 total += syllables.estimate(word)
             except Exception:
@@ -85,6 +93,7 @@ class AdvancedSyllableEstimator:
         result = {'language_breakdown': {}, 'total_syllables': 0, 'punctuation': [], 'spaces': []}
         segments = re.split(f"({self.punctuation['space']}|{self.punctuation['mid']}|{self.punctuation['end']})", text)
         total_duration = 0
+        default_lang = 'vi' if self._detect_language(text) == 'vi' else None
         
         for i, segment in enumerate(segments):
             if not segment: continue
@@ -100,6 +109,8 @@ class AdvancedSyllableEstimator:
                 total_duration += self.punctuation['pause']['default']
             else:
                 lang = self._detect_language(segment)
+                if default_lang == 'vi' and lang in ('en', 'fr', 'es'):
+                    lang = 'vi'
                 if lang:
                     syllables = self.count_syllables(segment, lang)
                     if lang not in result['language_breakdown']:

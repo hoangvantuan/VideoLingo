@@ -72,13 +72,13 @@ def analyze_subtitle_timing_and_speed(df):
     for i in range(len(df) - 1):
         current_end = datetime.datetime.strptime(df.loc[i, 'end_time'], '%H:%M:%S.%f').time()
         next_start = datetime.datetime.strptime(df.loc[i + 1, 'start_time'], '%H:%M:%S.%f').time()
-        df.loc[i, 'gap'] = time_diff_seconds(current_end, next_start, datetime.date.today())
+        df.loc[i, 'gap'] = max(0.0, time_diff_seconds(current_end, next_start, datetime.date.today()))
     
     # Set the gap for the last line
     last_end = datetime.datetime.strptime(df.iloc[-1]['end_time'], '%H:%M:%S.%f').time()
     last_end_seconds = (last_end.hour * 3600 + last_end.minute * 60 + 
                        last_end.second + last_end.microsecond / 1000000)
-    df.iloc[-1, df.columns.get_loc('gap')] = whole_dur - last_end_seconds
+    df.iloc[-1, df.columns.get_loc('gap')] = max(0.0, whole_dur - last_end_seconds)
     
     df['tolerance'] = df['gap'].apply(lambda x: TOLERANCE if x > TOLERANCE else x)
     df['tol_dur'] = df['duration'] + df['tolerance']

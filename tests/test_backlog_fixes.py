@@ -484,6 +484,7 @@ def _dub_tasks(monkeypatch, tmp_path, durations, lines):
         Sine(440).to_audio_segment(duration=int(durations[name] / speed_factor * 1000)).export(output_file, format="wav")
 
     monkeypatch.setattr(audio, "load_key", config.get)
+    monkeypatch.setattr(audio, "ask_gpt", lambda *a, **k: {})
     monkeypatch.setattr(audio, "adjust_audio_speed", fake_speed)
     monkeypatch.setattr(audio, "get_audio_duration", lambda path: len(AudioSegment.from_wav(path)) / 1000)
     monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))

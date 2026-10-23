@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from core.utils import *
 from core.utils.models import *
+from core.prompts import get_subtitle_trim_prompt
 from core.asr_backend.audio_preprocess import get_audio_duration
 from core.tts_backend.tts_main import tts_main
 
@@ -23,6 +24,7 @@ TEMP_FILE_TEMPLATE = f"{_AUDIO_TMP_DIR}/{{}}_temp.wav"
 OUTPUT_FILE_TEMPLATE = f"{_AUDIO_SEGS_DIR}/{{}}.wav"
 TRUNCATED_LOG = _10_DUB_TRUNCATED
 WARMUP_SIZE = 5
+MAX_TRIM_RETRIES = 2
 
 def parse_df_srt_time(time_str: str) -> float:
     """Convert SRT time format to seconds"""
@@ -172,6 +174,64 @@ def process_chunk(chunk_df: pd.DataFrame, accept: float, min_speed: float, max_s
         
     return round(speed_factor, 3), keep_gaps
 
+def _trim_and_resynthesize_chunk(
+    tasks_df: pd.DataFrame,
+    placed: list,
+    chunk_start_time: float,
+    chunk_end_time: float,
+    cur_time: float,
+    accept: float,
+) -> bool:
+    """Shorten overflowing lines in a chunk via LLM and re-synthesize their TTS audio."""
+    chunk_window = max(0.1, chunk_end_time - chunk_start_time)
+    total_spoken = cur_time - chunk_start_time
+    if total_spoken <= 0:
+        return False
+
+    def valid_trim(response):
+        if isinstance(response, dict) and 'result' in response:
+            return {'status': 'success', 'message': ''}
+        return {'status': 'error', 'message': 'No result in response'}
+
+    overflow_rows = {
+        idx for idx, _, _, _ in placed
+        if tasks_df.at[idx, 'real_dur'] / accept > tasks_df.at[idx, 'tol_dur']
+    }
+    if not overflow_rows:
+        overflow_rows = {idx for idx, _, _, _ in placed}
+
+    updated_rows = set()
+    for main_df_idx, line_index, _, line in placed:
+        if main_df_idx not in overflow_rows:
+            continue
+        start, end = tasks_df.at[main_df_idx, 'new_sub_times'][line_index]
+        spoken_dur = max(0.1, end - start)
+        target_duration = round(spoken_dur * (chunk_window / total_spoken), 2)
+        try:
+            prompt = get_subtitle_trim_prompt(line, target_duration)
+            response = ask_gpt(prompt, resp_type='json', log_title='sub_trim', valid_def=valid_trim)
+            shortened = str(response.get('result', '')).strip() if isinstance(response, dict) else ''
+        except Exception:
+            shortened = ''
+        if not shortened or shortened == line:
+            continue
+        row_lines = list(parse_task_literal(tasks_df.at[main_df_idx, 'lines']))
+        row_lines[line_index] = shortened
+        tasks_df.at[main_df_idx, 'lines'] = row_lines
+        number = tasks_df.at[main_df_idx, 'number']
+        temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
+        tts_main(shortened, temp_file, number, tasks_df)
+        updated_rows.add(main_df_idx)
+
+    for main_df_idx in updated_rows:
+        number = tasks_df.at[main_df_idx, 'number']
+        row_lines = parse_task_literal(tasks_df.at[main_df_idx, 'lines'])
+        tasks_df.at[main_df_idx, 'real_dur'] = sum(
+            get_audio_duration(TEMP_FILE_TEMPLATE.format(f"{number}_{idx}"))
+            for idx in range(len(row_lines))
+        )
+    return bool(updated_rows)
+
 def merge_chunks(tasks_df: pd.DataFrame) -> pd.DataFrame:
     """Merge audio chunks and adjust timeline"""
     rprint("[bold blue]🔄 Starting audio chunks processing...[/bold blue]")
@@ -186,37 +246,42 @@ def merge_chunks(tasks_df: pd.DataFrame) -> pd.DataFrame:
     for index, row in tasks_df.iterrows():
         if row['cut_off'] == 1:
             check_cancel()
-            chunk_df = tasks_df.iloc[chunk_start:index+1].reset_index(drop=True)
-            speed_factor, keep_gaps = process_chunk(chunk_df, accept, min_speed, max_speed)
-            placed = []  # (main DataFrame index, line index, audio file, text) in timeline order
-            
-            # 🎯 Step1: Start processing new timeline
-            chunk_start_time = parse_df_srt_time(chunk_df.iloc[0]['start_time'])
-            chunk_end_time = parse_df_srt_time(chunk_df.iloc[-1]['end_time']) + chunk_df.iloc[-1]['tolerance'] # 加上tolerance才是这一块的结束
-            cur_time = chunk_start_time
-            for i, row in chunk_df.iterrows():
-                # If i is not 0, which is not the first row of the chunk, cur_time needs to be added with the gap of the previous row, remember to divide by speed_factor
-                if i != 0 and keep_gaps:
-                    cur_time += chunk_df.iloc[i-1]['gap']/speed_factor
-                new_sub_times = []
-                number = row['number']
-                lines = parse_task_literal(row['lines'])
-                for line_index, line in enumerate(lines):
-                    # 🔄 Step2: Start speed change and save as OUTPUT_FILE_TEMPLATE
-                    temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
-                    output_file = OUTPUT_FILE_TEMPLATE.format(f"{number}_{line_index}")
-                    adjust_audio_speed(temp_file, output_file, speed_factor)
-                    ad_dur = get_audio_duration(output_file)
-                    new_sub_times.append([float(cur_time), float(cur_time+ad_dur)])
-                    cur_time += ad_dur
-                # 🔄 Step3: Find corresponding main DataFrame index and update new_sub_times
-                main_df_idx = tasks_df[tasks_df['number'] == row['number']].index[0]
-                tasks_df.at[main_df_idx, 'new_sub_times'] = new_sub_times
-                placed += [(main_df_idx, line_index, OUTPUT_FILE_TEMPLATE.format(f"{number}_{line_index}"), line)
-                           for line_index, line in enumerate(lines)]
-                # 🎯 Step4: Choose emoji based on speed_factor and accept comparison
-                emoji = "⚡" if speed_factor <= accept else "⚠️"
-                rprint(f"[cyan]{emoji} Processed chunk {chunk_start} to {index} with speed factor {speed_factor}[/cyan]")
+            for attempt in range(MAX_TRIM_RETRIES + 1):
+                chunk_df = tasks_df.iloc[chunk_start:index+1].reset_index(drop=True)
+                speed_factor, keep_gaps = process_chunk(chunk_df, accept, min_speed, max_speed)
+                placed = []  # (main DataFrame index, line index, audio file, text) in timeline order
+                
+                # 🎯 Step1: Start processing new timeline
+                chunk_start_time = parse_df_srt_time(chunk_df.iloc[0]['start_time'])
+                chunk_end_time = parse_df_srt_time(chunk_df.iloc[-1]['end_time']) + chunk_df.iloc[-1]['tolerance'] # 加上tolerance才是这一块的结束
+                cur_time = chunk_start_time
+                for i, chunk_row in chunk_df.iterrows():
+                    # If i is not 0, which is not the first row of the chunk, cur_time needs to be added with the gap of the previous row, remember to divide by speed_factor
+                    if i != 0 and keep_gaps:
+                        cur_time += chunk_df.iloc[i-1]['gap']/speed_factor
+                    new_sub_times = []
+                    number = chunk_row['number']
+                    lines = parse_task_literal(chunk_row['lines'])
+                    for line_index, line in enumerate(lines):
+                        # 🔄 Step2: Start speed change and save as OUTPUT_FILE_TEMPLATE
+                        temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
+                        output_file = OUTPUT_FILE_TEMPLATE.format(f"{number}_{line_index}")
+                        adjust_audio_speed(temp_file, output_file, speed_factor)
+                        ad_dur = get_audio_duration(output_file)
+                        new_sub_times.append([float(cur_time), float(cur_time+ad_dur)])
+                        cur_time += ad_dur
+                    # 🔄 Step3: Find corresponding main DataFrame index and update new_sub_times
+                    main_df_idx = tasks_df[tasks_df['number'] == chunk_row['number']].index[0]
+                    tasks_df.at[main_df_idx, 'new_sub_times'] = new_sub_times
+                    placed += [(main_df_idx, line_index, OUTPUT_FILE_TEMPLATE.format(f"{number}_{line_index}"), line)
+                               for line_index, line in enumerate(lines)]
+                    # 🎯 Step4: Choose emoji based on speed_factor and accept comparison
+                    emoji = "⚡" if speed_factor <= accept else "⚠️"
+                    rprint(f"[cyan]{emoji} Processed chunk {chunk_start} to {index} with speed factor {speed_factor}[/cyan]")
+                if cur_time <= chunk_end_time or attempt == MAX_TRIM_RETRIES:
+                    break
+                if not _trim_and_resynthesize_chunk(tasks_df, placed, chunk_start_time, chunk_end_time, cur_time, accept):
+                    break
             # 🔄 Step5: What still exceeds the chunk at the highest speed is truncated, from the end
             if cur_time > chunk_end_time:
                 rprint(f"[yellow]⚠️ Chunk {chunk_start} to {index} exceeds by {cur_time - chunk_end_time:.3f}s at speed factor {speed_factor}, truncating[/yellow]")

@@ -145,7 +145,7 @@ def dubbing_timing():
             fallback=1.4, help="Hệ số tốc độ đọc cao nhất của audio lồng tiếng")
     _number("Thời lượng phụ đề tối thiểu (min_subtitle_duration)", "min_subtitle_duration", 0.0, 10.0, 0.1,
             fallback=2.5, help="Giây; phụ đề ngắn hơn được kéo dài bắt buộc")
-    _number("Ngưỡng không chia phụ đề (min_trim_duration)", "min_trim_duration", 0.0, 10.0, 0.1, fallback=3.5,
+    _number("Ngưỡng không chia phụ đề (min_trim_duration)", "min_trim_duration", 0.0, 10.0, 0.1, fallback=0.0,
             help="Giây; phụ đề ngắn hơn giá trị này không bị chia")
     _number("Thời gian lấn sang phụ đề sau (tolerance)", "tolerance", 0.0, 10.0, 0.1, fallback=1.5,
             help="Giây được phép kéo dài sang phụ đề kế tiếp")
