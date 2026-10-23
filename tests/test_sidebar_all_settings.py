@@ -9,8 +9,9 @@ from streamlit.testing.v1 import AppTest
 
 from core.utils import config_utils
 from core.utils.config_utils import load_key, load_key_or
+from tests.template_config import TEMPLATE_CONFIG
 
-TRACKED = Path(__file__).resolve().parents[1] / "config.yaml"
+TRACKED = TEMPLATE_CONFIG  # the template, not the operator's config.yaml (#22)
 # keys deleted from the temporary config.yaml, as in a config.yaml written before them
 MISSING = {None: ["tts_max_workers", "audio", "speed_factor", "summary_length", "reflect_translate"],
            "subtitle": ["target_multiplier", "style"], "whisper": ["qwen_engine"], "openai_tts": ["model"]}

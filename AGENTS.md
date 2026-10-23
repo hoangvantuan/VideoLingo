@@ -21,7 +21,7 @@ Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/ag
 
 Do not read, print, grep, or copy these files. They hold real credentials:
 
-- `.env`, `.env.*` (except `.env.example`, which lists the variable names with empty values), `config.backup.yaml` (written by `scripts/move_keys_to_env.py`), `.private-llm.*`, and `docs/private-*.md`.
+- `.env`, `.env.*` (except `.env.example`, which lists the variable names with empty values), `config.backup.yaml` (written by `scripts/move_keys_to_env.py`), `config.before-upgrade.yaml` (written by `scripts/upgrade_config.py`), `.private-llm.*`, and `docs/private-*.md`.
 - Google service account key files such as `vertex-sa.json` or the file set in `GOOGLE_APPLICATION_CREDENTIALS`.
 - The cookies file at the path set in `youtube.cookies_path`.
 - Environment variables that hold keys, such as `SONIOX_API_KEY`. Do not run `env` or `printenv` without a filter.

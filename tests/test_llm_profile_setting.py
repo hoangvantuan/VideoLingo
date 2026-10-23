@@ -7,6 +7,7 @@ from streamlit.testing.v1 import AppTest
 
 from core.utils import config_utils
 from core.utils.config_utils import load_key
+from tests.template_config import TEMPLATE_CONFIG
 
 
 def _app():
@@ -149,7 +150,7 @@ def example_config(tmp_path, monkeypatch):
     from pathlib import Path
 
     path = tmp_path / "config.yaml"
-    shutil.copy(Path(__file__).resolve().parents[1] / "config.yaml", path)
+    shutil.copy(TEMPLATE_CONFIG, path)
     monkeypatch.setattr(config_utils, "CONFIG_PATH", str(path))
 
 

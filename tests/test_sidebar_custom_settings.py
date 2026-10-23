@@ -9,9 +9,10 @@ from streamlit.testing.v1 import AppTest
 from core.tts_backend import vertex_tts
 from core.utils import config_utils
 from core.utils.config_utils import load_key, load_key_or
+from tests.template_config import TEMPLATE_CONFIG
 from core.utils.original_audio import original_volume
 
-TRACKED = Path(__file__).resolve().parents[1] / "config.yaml"
+TRACKED = TEMPLATE_CONFIG  # the template, not the operator's config.yaml (#22)
 NEW_KEYS = ["llm_profiles", "vertex", "vertex_tts", "original_volume"]
 
 

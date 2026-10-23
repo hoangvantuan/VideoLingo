@@ -10,6 +10,7 @@ from core.asr_backend.qwen_asr_local import ISO_TO_QWEN
 from core.spacy_utils import load_nlp_model as nlp_loader
 from core.utils import config_utils
 from core.utils.config_utils import get_joiner, join_words
+from tests.template_config import TEMPLATE_CONFIG  # custom (#22)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -125,7 +126,7 @@ def test_configured_pipeline_download_failure_still_fails():
 def project(tmp_path, monkeypatch):
     """A working directory with config.yaml (auto -> detected language) and cleaned_chunks.xlsx."""
     def make(language, words):
-        text = (ROOT / "config.yaml").read_text(encoding="utf-8")
+        text = TEMPLATE_CONFIG.read_text(encoding="utf-8")  # custom (#22)
         text = text.replace("  language: 'en'\n  detected_language: 'en'",
                             f"  language: 'auto'\n  detected_language: '{language}'", 1)
         assert f"detected_language: '{language}'" in text
