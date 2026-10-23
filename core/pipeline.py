@@ -64,6 +64,8 @@ def review_terminology():
     runner = TaskRunner._current
     if runner is None or not load_key("pause_before_translate") or Path(_4_2_TRANSLATION).exists():
         return
+    if getattr(runner, "unattended", False):  # custom: playlist, a Lượt chạy playlist does not wait for a review
+        return  # custom
     message = REVIEW_TERMINOLOGY
     while True:
         runner.pause(message)
@@ -101,6 +103,8 @@ def review_translation():
     runner = TaskRunner._current
     if runner is None or not load_key_or("pause_after_translate", False) or Path(_5_SPLIT_SUB).exists():
         return
+    if getattr(runner, "unattended", False):  # custom: playlist, a Lượt chạy playlist does not wait for a review
+        return  # custom
     source, translation = read_translation()
     message = REVIEW_TRANSLATION
     while True:

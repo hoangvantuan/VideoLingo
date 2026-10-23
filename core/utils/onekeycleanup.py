@@ -2,8 +2,11 @@ import os
 import glob
 from core._1_ytdlp import find_media_file
 import shutil
+from core.utils.history_folder import merge_output  # custom: playlist
 
-def cleanup(history_dir="history"):
+def cleanup(history_dir="history", destination=None):  # custom: playlist, a chosen folder whose content is kept
+    if destination is not None:  # custom
+        return merge_output(destination)  # custom
     # Get input media file name
     media_file, _ = find_media_file()
     video_name = os.path.splitext(os.path.basename(media_file))[0]
