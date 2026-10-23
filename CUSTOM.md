@@ -54,6 +54,7 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `core/st_utils/playlist_tab.py` | #14 — tab "Playlist": ô URL và nút đọc, chọn video, phạm vi xử lý, tiến độ `n/N` và Trạng thái video tự làm mới mỗi giây, Pause/Resume, đường dẫn history của video `Xong` |
 | `core/utils/output_lock.py` | #18 — khoá `output/.playlist_run.lock` (ghi PID) trong lúc Lượt chạy playlist đang chạy; `is_locked()` cho chế độ 1 video và API, bỏ (và xoá) khoá cũ sau crash: cùng tiến trình mà không còn lượt chạy sống, hoặc tiến trình ghi khoá đã chết |
 | `tests/test_output_lock.py` | Test #18: khoá lúc chạy, pause, lỗi, stop; khoá cũ sau crash; khoá của tiến trình khác |
+| `tests/test_playlist_rerun.py` | Test #17: đọc lại Playlist đã chạy thì video `Xong` (theo video ID trong file trạng thái) được đánh dấu `done` và bỏ chọn sẵn trên tab; video `Xong` được tick lại thì làm lại vào đúng thư mục cũ; video mới không lấy trùng thư mục của video khác |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
