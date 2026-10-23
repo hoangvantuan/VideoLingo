@@ -257,5 +257,8 @@
     "Download video": "下載影片",
     "Save to 'history'": "儲存到 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` 中有另一個影片的檔案。請在單個影片模式中將其歸檔到 'history' 或刪除，然後再開始播放清單。",
-    "A playlist run is already active.": "已有一個播放清單正在執行。"
+    "A playlist run is already active.": "已有一個播放清單正在執行。",
+    "Failed step": "失敗的步驟",
+    "Error": "錯誤",
+    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "連續 2 個影片失敗，播放清單運行已暫停。這通常是系統錯誤（配額、API 金鑰、網絡或 cookies）：修正後再繼續。"
 }

@@ -257,5 +257,8 @@
     "Download video": "Télécharger la vidéo",
     "Save to 'history'": "Enregistrer dans 'history'",
     "`output/` holds the files of another video. Archive them to 'history' or delete them in the single video mode, then start the playlist.": "`output/` contient les fichiers d'une autre vidéo. Archivez-les dans 'history' ou supprimez-les dans le mode une seule vidéo, puis démarrez la playlist.",
-    "A playlist run is already active.": "Une exécution de playlist est déjà active."
+    "A playlist run is already active.": "Une exécution de playlist est déjà active.",
+    "Failed step": "Étape en échec",
+    "Error": "Erreur",
+    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "2 vidéos ont échoué à la suite, l'exécution de la playlist est donc en pause. C'est souvent une erreur système (quota, clé API, réseau ou cookies) : corrigez-la, puis reprenez."
 }
