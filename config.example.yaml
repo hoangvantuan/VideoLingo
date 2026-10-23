@@ -13,7 +13,7 @@ display_language: "zh-CN"
 api:
   # *Custom (F7): active LLM profile, a name from llm_profiles; '' = the custom profile (this api: section)
   profile: ''
-  key: 'YOUR_API_KEY'
+  key: '${LLM_API_KEY:-}'  # custom: #21, keys live in .env, see .env.example and CUSTOM.md "Key trong .env"
   base_url: 'https://api.openlux.ai/v1'
   model: 'gpt-6-luna'
   llm_support_json: false
@@ -75,17 +75,17 @@ whisper:
   # rewritten to large-v3 before loading. For zh, WhisperX forces Belle/large-v3 and ignores this.
   model: 'large-v3'
   # ElevenLabs API key (experimental)
-  elevenlabs_api_key: 'your_elevenlabs_api_key'
+  elevenlabs_api_key: '${ELEVENLABS_API_KEY:-}'  # custom: #21
   # Soniox API key (custom). The SONIOX_API_KEY environment variable takes precedence.
-  soniox_api_key: ''
+  soniox_api_key: '${SONIOX_API_KEY:-}'  # custom: #21
   # Azure Speech key and region for optional MAI-Transcribe-2. Leave the region
   # empty to detect it from the key, or enter a region/resource endpoint in the UI.
-  mai_api_key: ''
+  mai_api_key: '${AZURE_SPEECH_KEY:-}'  # custom: #21
   mai_region: ''
   # MAI provider: "azure" (default for existing MAI users) or "openrouter".
   mai_provider: 'azure'
   # OpenRouter API key for optional MAI-Transcribe-2 via OpenRouter.
-  mai_openrouter_api_key: ''
+  mai_openrouter_api_key: '${OPENROUTER_API_KEY:-}'  # custom: #21
 
 # Whether to burn subtitles into the video
 burn_subtitles: true
@@ -155,7 +155,7 @@ original_volume: 0.25
 # SiliconFlow FishTTS
 sf_fish_tts:
   # SiliconFlow API key
-  api_key: 'YOUR_API_KEY'
+  api_key: '${SILICONFLOW_API_KEY:-}'  # custom: #21
   # only for mode "preset"
   voice: 'anna'
   # *only for mode "custom", dont set manually
@@ -166,7 +166,7 @@ sf_fish_tts:
 
 # OpenAI TTS: the speech endpoint of OpenLux, or of another service with the API of OpenAI
 openai_tts:
-  api_key: 'YOUR_302_API_KEY'
+  api_key: '${OPENAI_TTS_API_KEY:-}'  # custom: #21
   voice: 'alloy'
   # *Base URL and model of the speech endpoint
   base_url: 'https://api.openlux.ai/v1'
@@ -174,7 +174,7 @@ openai_tts:
 
 # Fish Audio, the official API (https://fish.audio)
 fish_audio:
-  api_key: 'YOUR_FISH_AUDIO_KEY'
+  api_key: '${FISH_AUDIO_API_KEY:-}'  # custom: #21
   # clone: the voice of the video is cloned; preset: the fixed voice of voice_id
   mode: 'clone'
   # The voice of the mode "preset": the ID of a voice of fish.audio, the last part of the address of its page
@@ -188,7 +188,7 @@ fish_audio:
 
 # SiliconFlow CosyVoice2 Clone
 sf_cosyvoice2:
-  api_key: 'YOUR_SF_KEY'
+  api_key: '${SILICONFLOW_API_KEY:-}'  # custom: #21
 
 # Edge TTS configuration
 edge_tts:
@@ -196,7 +196,7 @@ edge_tts:
 
 # Soniox TTS (custom). The key falls back to SONIOX_API_KEY, then whisper.soniox_api_key.
 soniox_tts:
-  api_key: ''
+  api_key: '${SONIOX_API_KEY:-}'  # custom: #21
   # Built-in voice name (pick it in the dubbing settings) or a cloned voice ID
   voice: 'Linh'
   # ISO code of the dubbing text
@@ -232,7 +232,7 @@ gpt_sovits:
 
 # F5-TTS, 302.ai API only: the voice of the video is cloned
 f5tts:
-  302_api: 'YOUR_302_API_KEY'
+  302_api: '${API_302_KEY:-}'  # custom: #21
 
 # *Audio speed range
 speed_factor:

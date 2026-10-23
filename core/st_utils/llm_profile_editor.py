@@ -8,6 +8,7 @@ Labels are plain text, not translation keys, so no locale file has to change.
 import streamlit as st
 
 from core.st_utils import config_fields
+from core.utils import env_keys
 from core.utils.config_utils import load_key_or
 from core.utils.llm_profile import CUSTOM_PROFILE, PROVIDERS
 
@@ -105,9 +106,14 @@ def _profile_form(profiles):
                                            "vertex = Gemini trên Vertex AI, xác thực bằng credential Google")}
     for field, label in TEXT_FIELDS.items():
         entry[field] = st.text_input(label, value=str(stored.get(field) or ""), key=key + field).strip()
-    entry["api_key"] = st.text_input("API key (dự phòng)", value=str(stored.get("api_key") or ""), type="password",
-                                     key=key + "api_key",
-                                     help="Nên để trống và đặt key vào biến môi trường ở trên").strip()
+    var = env_keys.variable(stored.get("api_key"))
+    typed = st.text_input("API key (dự phòng)", value="" if var else str(stored.get("api_key") or ""),
+                          type="password", key=key + "api_key",
+                          placeholder=f"Lấy từ .env: {var}. Nhập key mới để thay" if var else None,
+                          help="Nên để trống và đặt key vào biến môi trường ở trên").strip()
+    if var:  # #21: the key is in .env; the reference stays in config.yaml, a typed key goes to .env on save
+        st.caption(f"Lấy từ .env: {var}")
+    entry["api_key"] = stored.get("api_key") if var else typed
 
     json_mode = stored.get("llm_support_json")
     json_mode = bool(json_mode) if json_mode is not None else None
@@ -131,6 +137,8 @@ def _profile_form(profiles):
         for message in found:
             st.error(message)
         if not found:
+            if var and typed:
+                env_keys.set_env(var, typed)
             _write(profiles, name, entry, target)
             st.session_state[PENDING_KEY] = name
             st.session_state[NOTICE_KEY] = f"Đã lưu profile '{name}'."
@@ -176,5 +184,5 @@ def render():
         return
     if NOTICE_KEY in st.session_state:
         st.success(st.session_state.pop(NOTICE_KEY))
-    _profile_form(load_key_or("llm_profiles", None) or {})
+    _profile_form(env_keys.raw("llm_profiles") or {})  # #21: as written, a ${VAR} key is never shown
     _vertex_inputs()

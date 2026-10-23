@@ -36,6 +36,13 @@ Yêu cầu và lộ trình: [`docs/PRD-custom.md`](docs/PRD-custom.md). Khi reba
 | `tests/test_sidebar_custom_settings.py` | Test nghiệm thu #11: đặt mọi khóa F7–F10 từ cả sidebar trên `config.yaml` cũ |
 | `core/st_utils/advanced_settings.py` | #12 — expander **Nâng cao** cuối sidebar: mọi khóa còn lại người vận hành chỉnh được (chung, ASR, phụ đề, dịch, lồng tiếng, âm thanh) |
 | `tests/test_sidebar_all_settings.py` | Test nghiệm thu #12: mỗi nhóm của **Nâng cao** ghi khóa vào `config.yaml` cũ chưa có khóa đó (Streamlit `AppTest`) |
+| `core/utils/env_keys.py` | #21 — key trong `.env`: nạp `.env` cạnh `config.yaml`, thay tham chiếu `${VAR}` khi đọc, giữ tham chiếu và ghi key mới vào `.env` khi ghi (`keep_references`, `set_env`, `raw`) |
+| `core/st_utils/key_input.py` | #21 — ô key của sidebar: key dạng `${VAR}` hiện tên biến, không lộ giá trị; key nhập mới vào `.env` |
+| `scripts/move_keys_to_env.py` | #21 — script người dùng tự chạy: chuyển key trong `config.yaml` sang `.env` (`--dry-run`, sao lưu, quyền 600) |
+| `.env.example` | #21 — tên các biến key, giá trị trống |
+| `tests/test_env_keys.py` | Test #21: đọc/ghi tham chiếu `${VAR}`, `.env`, `GOOGLE_APPLICATION_CREDENTIALS` |
+| `tests/test_env_key_inputs.py` | Test #21: ô key của sidebar, ô key nhà cung cấp TTS, trình sửa profile (Streamlit `AppTest`) |
+| `tests/test_move_keys_to_env.py` | Test #21: script chuyển key (config tạm), `config.example.yaml` và `.env.example` khớp tên biến |
 | `CUSTOM.md` | Tài liệu này |
 | `docs/PRD-custom.md` | PRD của fork |
 
@@ -46,7 +53,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | File | Thay đổi | Số dòng |
 |---|---|---|
 | `core/_2_asr.py` | thêm `"soniox"` vào danh sách runtime; kiểm tra key trước khi chuẩn bị media; nhánh `elif runtime == "soniox"` | 6 |
-| `core/st_utils/sidebar_setting.py` | thêm `"soniox"` vào ô chọn runtime (nhãn cố định, không qua `t()`) và ô nhập key (ẩn ký tự, `type="password"`) | 7 |
+| `core/st_utils/sidebar_setting.py` | thêm `"soniox"` vào ô chọn runtime (nhãn cố định, không qua `t()`) và ô nhập key (ẩn ký tự; từ #21 qua `key_input`) | 5 |
 | `core/tts_backend/tts_main.py` | import + nhánh `elif TTS_METHOD == 'soniox_tts'` | 3 |
 | `core/st_utils/tts_settings.py` | provider `"Soniox"` trong `PROVIDERS` và `KEY_PATHS` | 2 |
 | `core/st_utils/sidebar_setting.py` (F6) | nhãn `soniox_tts` + nhánh gọi `soniox_tts_settings.render()` | 4 |
@@ -75,6 +82,12 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `core/st_utils/sidebar_setting.py` (#12) | import + gọi `advanced_settings.render()` cuối `page_setting()`, sau Dubbing Settings | 2 |
 | `requirements.txt` (F8/F9) | `google-auth` | 2 |
 | `requirements.txt` (F1/F6) | `soniox` (SDK chính thức, `>=2.10,<3`) | 2 |
+| `core/utils/config_utils.py` (#21) | import `env_keys`; `load_key(key, resolve=True)` nạp `.env` và thay `${VAR}` (`resolve=False` đọc nguyên văn); `update_key` ghi qua `keep_references` | 5 |
+| `core/st_utils/sidebar_setting.py` (#21) | import `key_input`; ô `api.key`, `whisper.elevenlabs_api_key`, `whisper.mai_openrouter_api_key`, `whisper.mai_api_key` (và ô Soniox ở trên) đi qua `key_input` thay cho `config_input`/`st.text_input` | 6 |
+| `core/st_utils/tts_settings.py` (#21) | `save_settings` ghi qua `keep_references`; ô key nhà cung cấp dạng `${VAR}` đi qua `key_input` | 2 + 6 |
+| `config.example.yaml` (#21) | 11 ô key thành `${VAR:-}` (tên biến chuẩn, xem `.env.example`) | 11 |
+| `requirements.txt` (#21) | `python-dotenv` | 2 |
+| `tests/test_fish_audio_tts.py` (#21) | `load_key` giả nhận thêm `resolve=` | 1 |
 | `config.example.yaml` | khóa `tts_max_workers`; khóa `whisper.soniox_api_key` và ghi chú runtime; mục `soniox_tts:`; khóa `original_volume` (F10); (F9) mục `vertex:`, `vertex_tts:` và dòng `# *Custom: also soniox_tts, vertex_tts` dưới ghi chú `tts_method` (dòng upstream giữ nguyên) | 3 + 12 + 3 + 20 |
 
 ## Cấu hình F1 (Soniox)
@@ -83,7 +96,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 whisper:
   runtime: 'soniox'
   language: 'en'        # hoặc 'ja', hoặc 'auto' (gợi ý en + ja, bật nhận diện ngôn ngữ)
-  soniox_api_key: ''    # để trống, đặt biến môi trường SONIOX_API_KEY
+  soniox_api_key: '${SONIOX_API_KEY}'    # key trong .env, xem "Key trong .env"
 ```
 
 - Key đọc theo thứ tự: `SONIOX_API_KEY` → `whisper.soniox_api_key`.
@@ -299,7 +312,8 @@ gcloud iam service-accounts keys create ~/.config/videolingo/gcp-sa.json \
 chmod 600 ~/.config/videolingo/gcp-sa.json
 ```
 
-5. Đặt biến môi trường cho tiến trình VideoLingo:
+5. Đặt biến cho tiến trình VideoLingo, cách gọn nhất là một dòng trong `.env` (xem "Key trong .env"):
+   `GOOGLE_APPLICATION_CREDENTIALS=/home/<user>/.config/videolingo/gcp-sa.json`. Hoặc biến môi trường:
    - Shell: `export GOOGLE_APPLICATION_CREDENTIALS=~/.config/videolingo/gcp-sa.json`
    - systemd: thêm vào mục `[Service]` của unit (đường dẫn tuyệt đối), rồi `systemctl daemon-reload && systemctl restart <unit>`:
 
@@ -309,3 +323,36 @@ chmod 600 ~/.config/videolingo/gcp-sa.json
 6. Đặt `vertex.project` trong `config.yaml` (hoặc để trống để dùng project trong key JSON).
 
 Không commit key JSON. Thu hồi key: `gcloud iam service-accounts keys list/delete --iam-account ...`.
+
+## Key trong .env
+
+Từ #21, key và secret không nằm trong `config.yaml`. `config.yaml` chỉ chứa tham chiếu `${TÊN_BIẾN}` (hoặc `${TÊN_BIẾN:-mặc định}`); giá trị nằm trong `.env` cạnh `config.yaml` (đã có trong `.gitignore`) hoặc trong biến môi trường của tiến trình.
+
+```yaml
+api:
+  key: '${LLM_API_KEY}'
+whisper:
+  soniox_api_key: '${SONIOX_API_KEY}'
+```
+
+```ini
+# .env (quyền 600, không commit)
+LLM_API_KEY=sk-...
+SONIOX_API_KEY=...
+GOOGLE_APPLICATION_CREDENTIALS=/home/<user>/.config/videolingo/gcp-sa.json
+```
+
+- **Thứ tự ưu tiên**: biến môi trường đã có của tiến trình → `.env` (nạp một lần với `override=False`) → giá trị sau `:-`. `${VAR}` không có mặc định mà biến chưa đặt → `MissingEnvVarError` (một `ConfigError`, không thử lại) nêu tên biến và đường dẫn `.env`, không in giá trị. Lỗi này xảy ra cả khi đọc nguyên mục chứa key (ví dụ `load_key("whisper")`), nên `config.example.yaml` dùng `${VAR:-}` cho các ô key tùy chọn.
+- **Đọc**: `load_key`/`load_key_or` trả giá trị đã thay; `load_key(key, resolve=False)` hoặc `env_keys.raw(key)` đọc nguyên văn.
+- **Ghi**: `update_key` (nên cả `config_fields.save`, `config_input`) và `tts_settings.save_settings` ghi qua `env_keys.keep_references`: tham chiếu luôn được giữ trong `config.yaml`; giá trị khác giá trị biến đang đọc được ghi vào `.env` dưới tên biến đó (tạo file quyền 600 nếu chưa có); ghi một chuỗi `${...}` mới thì đổi tham chiếu. Áp dụng cả khi ghi nguyên mục (ví dụ `llm_profiles`).
+- **Sidebar**: ô key dạng `${VAR}` để trống và ghi "Lấy từ .env: VAR"; nhập key mới → `.env` cập nhật, `config.yaml` giữ `${VAR}`. Ô key chưa dùng biến vẫn ghi vào `config.yaml` như cũ (ẩn ký tự). Lưu ý: biến đã đặt sẵn trong môi trường tiến trình (systemd, shell) vẫn thắng `.env` ở lần khởi động sau.
+- **Tên biến chuẩn**: xem `.env.example` (`LLM_API_KEY`, `OPENROUTER_API_KEY`, `SONIOX_API_KEY`, `ELEVENLABS_API_KEY`, `AZURE_SPEECH_KEY`, `OPENAI_TTS_API_KEY`, `API_302_KEY`, `SILICONFLOW_API_KEY`, `FISH_AUDIO_API_KEY`, `GOOGLE_APPLICATION_CREDENTIALS`). `SONIOX_API_KEY` và `api_key_env` của LLM profile vẫn đọc biến môi trường trước như cũ.
+- **Chuyển `config.yaml` cũ**: chạy từ thư mục gốc repo
+
+  ```bash
+  python scripts/move_keys_to_env.py --dry-run   # chỉ in tên khóa -> tên biến
+  python scripts/move_keys_to_env.py
+  ```
+
+  Script chuyển mọi giá trị không rỗng của khóa có tên chứa `key`/`token`/`secret` (thêm `f5tts.302_api`), trừ khóa trỏ tên biến (`*_env`), giá trị đã là `${...}` và placeholder `YOUR_...`. Key của LLM profile dùng biến trong `api_key_env` của profile nếu có. Trước khi sửa, `config.yaml` được chép sang `config.backup.yaml` (quyền 600, chứa key thật: xóa khi đã kiểm tra xong). Biến đã có trong `.env` hoặc môi trường không bị ghi đè: cùng giá trị thì dùng lại, khác giá trị thì giữ key trong `config.yaml` và báo `SKIPPED`. Không in giá trị nào.
+- **systemd/Paseo**: không cần truyền biến key hay `GOOGLE_APPLICATION_CREDENTIALS` qua `Environment=` nữa; `.env` được nạp khi đọc config lần đầu và trước khi `google_credentials` gọi `google.auth.default()`.

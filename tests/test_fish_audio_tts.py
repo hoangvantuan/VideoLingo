@@ -227,7 +227,7 @@ def test_provider_with_one_method_has_no_method_box(monkeypatch, method, boxes):
     from core.utils import config_utils
     from translations import translations
 
-    monkeypatch.setattr(config_utils, "load_key", lambda key: method)
+    monkeypatch.setattr(config_utils, "load_key", lambda key, resolve=True: method)  # custom: #21, load_key(key, resolve=False)
     monkeypatch.setattr(config_utils, "load_key_or", lambda key, default: default)
     monkeypatch.setattr(translations, "translate", lambda text: text)
 

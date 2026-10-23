@@ -52,6 +52,7 @@ def configured_keys(provider, method, load_key):
 def save_settings(values):
     """Write `section.key` values; a section that an older config.yaml does not have is created."""
     from core.utils import config_utils
+    from core.utils.env_keys import keep_references  # custom: #21
 
     with config_utils.lock:
         with open(config_utils.CONFIG_PATH, encoding="utf-8") as file:
@@ -60,7 +61,7 @@ def save_settings(values):
             section, key = path.split(".")
             if not isinstance(data.get(section), dict):
                 data[section] = {}
-            data[section][key] = value
+            data[section][key] = keep_references(data[section].get(key), value)  # custom: #21, a key never lands in config.yaml
         with open(config_utils.CONFIG_PATH, "w", encoding="utf-8") as file:
             config_utils.yaml.dump(data, file)
 
@@ -74,6 +75,8 @@ def select_tts_method(labels):
     import streamlit as st
     from translations.translations import translate as t
     from core.utils.config_utils import load_key, load_key_or, update_key
+    from core.utils import env_keys  # custom: #21
+    from core.st_utils.key_input import key_input  # custom: #21
 
     current = load_key("tts_method")
     provider = next((name for name, methods in PROVIDERS.items() if current in methods), None)
@@ -97,6 +100,10 @@ def select_tts_method(labels):
         update_key("tts_method", selected)
         st.rerun()
     if chosen in KEY_PATHS:
+        key_path = KEY_PATHS[chosen][methods.index(selected)]  # custom: #21
+        if env_keys.variable(env_keys.raw(key_path)):  # custom: #21, the key is in .env: show its variable only
+            key_input(t("Provider API Key"), key_path, help=t("Shared by all TTS methods under this provider."))  # custom: #21
+            return selected  # custom: #21
         load_optional = lambda path: load_key_or(path, "")  # a provider that is newer than the config.yaml
         value, conflict = configured_keys(chosen, selected, load_optional)
         if conflict:
