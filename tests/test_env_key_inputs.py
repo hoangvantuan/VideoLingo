@@ -131,3 +131,22 @@ def test_a_new_key_typed_in_the_profile_editor_goes_to_dotenv(config, profile_co
     assert not at.exception
     assert "sk-profile" not in config.read_text(encoding="utf-8")
     assert load_key("llm_profiles.main.api_key") == "sk-profile"
+
+
+def test_an_unset_variable_of_a_sibling_tts_method_does_not_break_the_key_box(config):
+    config.write_text(config.read_text(encoding="utf-8") + textwrap.dedent("""
+        tts_method: sf_fish_tts
+        sf_fish_tts:
+          api_key: 'plain-sf'
+        sf_cosyvoice2:
+          api_key: '${VL_OTHER_KEY}'
+    """), encoding="utf-8")
+    at = AppTest.from_function(_sf_app).run()
+    assert not at.exception
+    assert at.text_input[0].value == "plain-sf"
+
+
+def _sf_app():
+    from core.st_utils.tts_settings import select_tts_method
+
+    select_tts_method({"sf_fish_tts": "Fish TTS", "sf_cosyvoice2": "CosyVoice2"})

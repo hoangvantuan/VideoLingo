@@ -105,6 +105,7 @@ def select_tts_method(labels):
             key_input(t("Provider API Key"), key_path, help=t("Shared by all TTS methods under this provider."))  # custom: #21
             return selected  # custom: #21
         load_optional = lambda path: load_key_or(path, "")  # a provider that is newer than the config.yaml
+        load_optional = env_keys.unset_as_empty(load_optional)  # custom: #21, a sibling ${VAR} may be unset
         value, conflict = configured_keys(chosen, selected, load_optional)
         if conflict:
             st.warning(t("Existing methods use different keys. Editing this field replaces all keys for this provider."))

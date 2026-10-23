@@ -85,6 +85,16 @@ def resolve(value):
     return _value_of(*ref) if ref else value
 
 
+def unset_as_empty(load):
+    """`load` that reads "" where a referenced variable is unset (to show settings, never to run a step)."""
+    def wrapped(*args, **kwargs):
+        try:
+            return load(*args, **kwargs)
+        except MissingEnvVarError:
+            return ""
+    return wrapped
+
+
 def set_env(var, value):
     """Write VAR to .env (created with mode 600) and to this process's environment."""
     from dotenv import set_key

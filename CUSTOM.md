@@ -84,7 +84,7 @@ Các dòng thêm vào đều có chú thích `# custom`.
 | `requirements.txt` (F1/F6) | `soniox` (SDK chính thức, `>=2.10,<3`) | 2 |
 | `core/utils/config_utils.py` (#21) | import `env_keys`; `load_key(key, resolve=True)` nạp `.env` và thay `${VAR}` (`resolve=False` đọc nguyên văn); `update_key` ghi qua `keep_references` | 5 |
 | `core/st_utils/sidebar_setting.py` (#21) | import `key_input`; ô `api.key`, `whisper.elevenlabs_api_key`, `whisper.mai_openrouter_api_key`, `whisper.mai_api_key` (và ô Soniox ở trên) đi qua `key_input` thay cho `config_input`/`st.text_input` | 6 |
-| `core/st_utils/tts_settings.py` (#21) | `save_settings` ghi qua `keep_references`; ô key nhà cung cấp dạng `${VAR}` đi qua `key_input` | 2 + 6 |
+| `core/st_utils/tts_settings.py` (#21) | `save_settings` ghi qua `keep_references`; ô key nhà cung cấp dạng `${VAR}` đi qua `key_input`; biến chưa đặt của phương thức cùng nhà cung cấp đọc thành rỗng | 2 + 7 |
 | `config.example.yaml` (#21) | 11 ô key thành `${VAR:-}` (tên biến chuẩn, xem `.env.example`) | 11 |
 | `requirements.txt` (#21) | `python-dotenv` | 2 |
 | `tests/test_fish_audio_tts.py` (#21) | `load_key` giả nhận thêm `resolve=` | 1 |
