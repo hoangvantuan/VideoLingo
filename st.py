@@ -21,6 +21,7 @@ from core.utils import load_key, update_key
 from core.utils.onekeycleanup import cleanup
 from core.utils.delete_retry_dubbing import delete_dubbing_files
 from core.st_utils import playlist_tab  # custom: playlist
+from core.utils import output_lock  # custom: playlist #18
 from translations.translations import DISPLAY_LANGUAGES, init_display_language, set_display_language
 from core.utils.models import _TEXT_DONE_MARKER, _AUDIO_DONE_MARKER
 
@@ -360,7 +361,9 @@ def main():
         st.markdown(give_star_button(), unsafe_allow_html=True)
     single_tab, playlist_tab_ = st.tabs([t("Single video"), t("Playlist")])  # custom: playlist
     with single_tab:  # custom
-        if download_video_section():  # custom: indented
+        if output_lock.is_locked():  # custom: playlist #18
+            st.warning(t("A playlist run is using `output/`. The single video mode is available again once the run is no longer running."))  # custom
+        elif download_video_section():  # custom: indented
             text_done = text_processing_section()  # custom
             from core._1_ytdlp import is_audio_only_input  # custom
             if text_done and not is_audio_only_input():  # custom

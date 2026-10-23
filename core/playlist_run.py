@@ -51,6 +51,9 @@ back from its history folder into ``output/`` when its turn comes, and the video
 downloaded again; the pipeline skips the steps whose intermediate files exist. A video `Xong`
 that is selected again starts anew.
 
+While the run runs it holds the lock of ``output/`` (``core.utils.output_lock``), which the
+single video mode and the API respect; the lock goes when the background thread ends.
+
 Settings are read from config.yaml at each step, as in ADR-0002: a change in the sidebar
 applies to the following steps and videos.
 
@@ -68,6 +71,7 @@ from pathlib import Path
 from typing import Callable
 
 from core.task_runner import StopTask, TaskRunner
+from core.utils import output_lock
 from core.utils.config_utils import load_key
 from core.utils.history_folder import merge_output
 from core.utils.onekeycleanup import cleanup, sanitize_filename
@@ -320,6 +324,8 @@ class PlaylistRun:
                 raise PlaylistRunError(RUN_ACTIVE)
             if self._runner.is_active:
                 raise PlaylistRunError(RUN_ACTIVE)
+            if output_lock.is_locked():  # a run of another process; a stale lock is removed
+                raise PlaylistRunError(RUN_ACTIVE)
             unfinished = _unfinished_state_file()
             if unfinished is not None and not (self.run_state == RUN_INTERRUPTED
                                                and unfinished == self.folder / STATE_FILE):
@@ -328,7 +334,12 @@ class PlaylistRun:
                 raise PlaylistRunError(OUTPUT_NOT_EMPTY)
             _current = self
             self._save(RUN_RUNNING)
-            self._runner.start([("Playlist", self._process_all)])
+            output_lock.acquire()
+            try:
+                self._runner.start([("Playlist", self._process_all)])
+            except BaseException:
+                output_lock.release()
+                raise
 
     def pause(self):
         self._runner.pause()
@@ -390,8 +401,9 @@ class PlaylistRun:
     # ------ Background thread ------
 
     def _process_all(self):
-        failures = 0  # videos failed in a row
         try:
+            output_lock.acquire()  # again: until the thread ran, is_locked() could take it for stale
+            failures = 0  # videos failed in a row
             for position, video in enumerate(self.videos):
                 if video.selected and video.status == WAITING:
                     TaskRunner.check_cancel()
@@ -409,8 +421,11 @@ class PlaylistRun:
         except StopTask:
             self._park()
             raise
-        self.current_step = ""
-        self._save(RUN_FINISHED)
+        else:
+            self.current_step = ""
+            self._save(RUN_FINISHED)
+        finally:
+            output_lock.release()
 
     def _park(self):
         """Move the work of the current video into its history folder; it waits for Tiếp tục."""
@@ -438,7 +453,7 @@ class PlaylistRun:
         TaskRunner.check_cancel()
         self.current_step = SAVE_STEP
         cleanup(destination=str(self.folder / video.folder))
-        if OUTPUT.exists() and any(OUTPUT.iterdir()):
+        if OUTPUT.exists() and any(p != output_lock.LOCK_FILE for p in OUTPUT.iterdir()):
             raise RuntimeError(f"Some files of output/ could not be moved to {self.folder / video.folder}")
         self._set_status(position, DONE)
 
@@ -449,7 +464,7 @@ class PlaylistRun:
         destination = self.folder / self.videos[position].folder
         cleanup(destination=str(destination))
         self._set_status(position, FAILED, failed_step=step, error=_short(error), partial=True)
-        if OUTPUT.exists() and any(OUTPUT.iterdir()):
+        if OUTPUT.exists() and any(p != output_lock.LOCK_FILE for p in OUTPUT.iterdir()):
             raise RuntimeError(f"Some files of output/ could not be moved to {destination}")
 
 

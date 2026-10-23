@@ -264,5 +264,6 @@
     "A playlist run is unfinished. Continue it or end it first.": "有未完成的播放清單運行。請先繼續或結束它。",
     "Failed step": "失敗的步驟",
     "Error": "錯誤",
-    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "連續 2 個影片失敗，播放清單運行已暫停。這通常是系統錯誤（配額、API 金鑰、網絡或 cookies）：修正後再繼續。"
+    "2 videos failed in a row, so the playlist run paused. This is often a system error (quota, API key, network or cookies): fix it, then resume.": "連續 2 個影片失敗，播放清單運行已暫停。這通常是系統錯誤（配額、API 金鑰、網絡或 cookies）：修正後再繼續。",
+    "A playlist run is using `output/`. The single video mode is available again once the run is no longer running.": "播放清單正在使用 `output/`。播放清單停止運行後，單個影片模式即可再次使用。"
 }
