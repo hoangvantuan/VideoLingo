@@ -18,7 +18,7 @@ api:
   model: 'deepseek/deepseek-v4.1-flash-1017'
   llm_support_json: true
 # *Number of LLM multi-threaded accesses, set to 1 if using local LLM
-max_workers: 4
+max_workers: 16
 # *Custom (F7): named LLM profiles for the Translate stage, chosen by api.profile. See CUSTOM.md "Cấu hình F7".
 llm_profiles:
   openrouter-free:
@@ -88,7 +88,7 @@ whisper:
   mai_openrouter_api_key: ''                         # custom: #21
 
 # Whether to burn subtitles into the video
-burn_subtitles: true
+burn_subtitles: false
 
 ## ======================== Advanced Settings ======================== ##
 # *🔬 h264_nvenc GPU acceleration for ffmpeg, make sure your GPU supports it
@@ -150,7 +150,7 @@ pause_after_translate: false
 tts_method: 'vertex_tts'
 # *Custom F10: Thuyết minh — Âm lượng gốc, level (0–1) of the video's own audio kept under the dubbed voice.
 # > 0 replaces the Demucs background track; 0 keeps the upstream merge.
-original_volume: 0.25
+original_volume: 0.1
 
 # SiliconFlow FishTTS
 sf_fish_tts:
@@ -217,13 +217,13 @@ vertex:
 # Vertex AI dubbing (custom): Cloud Text-to-Speech
 vertex_tts:
   # Cloud TTS voice name; empty = vi-VN-Chirp3-HD-Aoede
-  voice: 'vi-VN-Chirp3-HD-Achernar'
+  voice: 'vi-VN-Chirp3-HD-Algenib'
   # BCP-47 code of the dubbing text
   language: 'vi-VN'
   # Speaking rate from 0.25 to 2.0
   speed: 1.0
   # *Parallel TTS requests while using vertex_tts; replaces max_workers and tts_max_workers
-  max_workers: 4
+  max_workers: 8
 
 # SoVITS configuration
 gpt_sovits:
@@ -242,7 +242,7 @@ speed_factor:
 
 # *Merge audio configuration
 min_subtitle_duration: 2.5 # Minimum subtitle duration, will be forcibly extended
-min_trim_duration: 0 # Subtitles shorter than this value won't be split
+min_trim_duration: 3.5 # Subtitles shorter than this value won't be split
 tolerance: 1.5 # Allowed extension time to the next subtitle
 
 # *Raw audio extraction quality (raw.mp3). Demucs vocals and voice-clone reference clips inherit this bandwidth;

@@ -68,13 +68,8 @@ def test_vietnamese_duration_estimation_with_acronyms_and_numbers():
     assert statistics.median(relative_errors) < 0.10
 
 
-def test_pre_tts_trim_uses_accept_speed_factor_and_zero_min_trim_duration(monkeypatch):
+def test_pre_tts_trim_uses_accept_speed_factor(monkeypatch):
     from core import _8_1_audio_task as audio_task
-    from core.utils import config_utils
-
-    with open(ROOT / "config.yaml", encoding="utf-8") as f:
-        cfg = config_utils.yaml.load(f)
-    assert cfg["min_trim_duration"] == 0
 
     # 12 Vietnamese syllables + 1 period = 12 * 0.28 + 0.1 = 3.46s
     # At max=1.4: 3.46 / 1.4 = 2.47s <= 2.76s (would NOT trim)
