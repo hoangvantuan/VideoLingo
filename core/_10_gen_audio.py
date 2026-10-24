@@ -215,6 +215,21 @@ def _trim_and_resynthesize_chunk(
             shortened = ''
         if not shortened or shortened == line:
             continue
+        number = tasks_df.at[main_df_idx, 'number']
+        temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
+        # tts_main skips a path that exists, and the old audio is there already.
+        # Synthesize next to it and swap, so a TTS error keeps the old audio.
+        trim_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}_trim")
+        if os.path.exists(trim_file):
+            os.remove(trim_file)
+        try:
+            tts_main(shortened, trim_file, number, tasks_df)
+            os.replace(trim_file, temp_file)
+        except Exception as e:
+            rprint(f"[yellow]⚠️ Re-synthesizing trimmed line {number}_{line_index} failed, keeping the old audio: {e}[/yellow]")
+            if os.path.exists(trim_file):
+                os.remove(trim_file)
+            continue
         row_lines = list(parse_task_literal(tasks_df.at[main_df_idx, 'lines']))
         row_lines[line_index] = shortened
         # Read from Excel, `lines` is a string column (StringDtype on pandas 3),
@@ -222,9 +237,6 @@ def _trim_and_resynthesize_chunk(
         if tasks_df['lines'].dtype != object:
             tasks_df['lines'] = tasks_df['lines'].astype(object)
         tasks_df.at[main_df_idx, 'lines'] = row_lines
-        number = tasks_df.at[main_df_idx, 'number']
-        temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
-        tts_main(shortened, temp_file, number, tasks_df)
         updated_rows.add(main_df_idx)
 
     for main_df_idx in updated_rows:

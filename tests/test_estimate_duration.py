@@ -312,3 +312,66 @@ def test_merge_chunks_trims_multi_line_row_read_from_excel(monkeypatch, tmp_path
 
     assert list(audio.parse_task_literal(result.at[0, "lines"])) == ["Ngắn.", "Ngắn."]
     assert result.at[0, "new_sub_times"][-1][1] <= 12.0
+
+
+def test_merge_chunks_trim_replaces_existing_temp_audio_with_resynthesized_line(monkeypatch, tmp_path):
+    """The temp audio of the overflowing line already exists (written by
+    generate_tts_audio), and tts_main skips a path that exists. The trimmed line
+    must still be synthesized and replace it."""
+    import pandas as pd
+    from pydub import AudioSegment
+    from pydub.generators import Sine
+    from core import _10_gen_audio as audio
+    from core.tts_backend import tts_main as tts_module
+
+    config = {"speed_factor.accept": 1.2, "speed_factor.min": 1.0, "speed_factor.max": 1.4}
+    monkeypatch.setattr(audio, "load_key", config.get)
+    monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))
+    monkeypatch.setattr(audio, "TRUNCATED_LOG", str(tmp_path / "log" / "dub_truncated.json"))
+    duration = lambda path: len(AudioSegment.from_wav(path)) / 1000
+    monkeypatch.setattr(audio, "get_audio_duration", duration)
+    monkeypatch.setattr(tts_module, "get_audio_duration", duration)
+
+    def write_wav(path, seconds):
+        Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
+
+    # 3.5s is 2.5s at max speed 1.4x, more than the 2.0s slot
+    write_wav(tmp_path / "1_0_temp.wav", 3.5)
+
+    def fake_speed(temp_file, output_file, speed_factor):
+        write_wav(output_file, duration(temp_file) / speed_factor)
+
+    synthesized = []
+
+    def fake_backend(text, save_as):
+        synthesized.append(text)
+        write_wav(save_as, 2.1)
+
+    # The real tts_main runs; only the TTS service behind it is faked
+    monkeypatch.setattr(audio, "adjust_audio_speed", fake_speed)
+    monkeypatch.setattr(tts_module, "load_key", {"tts_method": "edge_tts"}.get)
+    monkeypatch.setattr(tts_module, "edge_tts", fake_backend)
+    monkeypatch.setattr(audio, "ask_gpt", lambda prompt, **kw: {"result": "Câu đã rút gọn."})
+
+    tasks = pd.DataFrame(
+        {
+            "number": [1],
+            "cut_off": [1],
+            "tol_dur": [2.0],
+            "tolerance": [0.0],
+            "gap": [0.0],
+            "real_dur": [3.5],
+            "start_time": ["00:00:10.000"],
+            "end_time": ["00:00:12.000"],
+            "lines": [["Một câu tiếng Việt rất dài bị tràn khung thời gian."]],
+        }
+    )
+
+    result = audio.merge_chunks(tasks)
+
+    assert synthesized == ["Câu đã rút gọn."]
+    assert duration(tmp_path / "1_0_temp.wav") == 2.1
+    assert result.at[0, "real_dur"] == 2.1
+    assert result.at[0, "new_sub_times"][0][1] <= 12.0
+    assert not (tmp_path / "log" / "dub_truncated.json").exists()
