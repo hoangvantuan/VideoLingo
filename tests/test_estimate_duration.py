@@ -252,3 +252,63 @@ def test_merge_chunks_truncates_after_max_two_trim_retries(monkeypatch, tmp_path
 
 
 
+
+
+def test_merge_chunks_trims_multi_line_row_read_from_excel(monkeypatch, tmp_path):
+    """`lines` read back from tts_tasks.xlsx is a string column (StringDtype on
+    pandas 3), which refuses a list of more than one item."""
+    import pandas as pd
+    from pydub import AudioSegment
+    from pydub.generators import Sine
+    from core import _10_gen_audio as audio
+
+    config = {"speed_factor.accept": 1.2, "speed_factor.min": 1.0, "speed_factor.max": 1.4}
+    monkeypatch.setattr(audio, "load_key", config.get)
+    monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))
+    monkeypatch.setattr(audio, "TRUNCATED_LOG", str(tmp_path / "log" / "dub_truncated.json"))
+    monkeypatch.setattr(
+        audio,
+        "get_audio_duration",
+        lambda path: len(AudioSegment.from_wav(path)) / 1000,
+    )
+
+    def write_wav(path, seconds):
+        Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
+
+    # Two lines of 2.0s each: 4.0s, about 2.9s at max speed 1.4x > 2.0s slot
+    write_wav(tmp_path / "1_0_temp.wav", 2.0)
+    write_wav(tmp_path / "1_1_temp.wav", 2.0)
+
+    def fake_speed(temp_file, output_file, speed_factor):
+        dur = len(AudioSegment.from_wav(temp_file)) / 1000
+        write_wav(output_file, dur / speed_factor)
+
+    def fake_tts(text, save_as, number, tasks_df):
+        write_wav(save_as, 1.0)
+
+    monkeypatch.setattr(audio, "adjust_audio_speed", fake_speed)
+    monkeypatch.setattr(audio, "tts_main", fake_tts)
+    monkeypatch.setattr(audio, "ask_gpt", lambda prompt, **kw: {"result": "Ngắn."})
+
+    tasks = pd.DataFrame(
+        {
+            "number": [1],
+            "cut_off": [1],
+            "tol_dur": [2.0],
+            "tolerance": [0.0],
+            "gap": [0.0],
+            "real_dur": [4.0],
+            "start_time": ["00:00:10.000"],
+            "end_time": ["00:00:12.000"],
+            "lines": ["['Dòng đầu quá dài.', 'Dòng sau cũng dài.']"],
+        }
+    )
+    xlsx = tmp_path / "tts_tasks.xlsx"
+    tasks.to_excel(xlsx, index=False)
+    tasks = pd.read_excel(xlsx)
+
+    result = audio.merge_chunks(tasks)
+
+    assert list(audio.parse_task_literal(result.at[0, "lines"])) == ["Ngắn.", "Ngắn."]
+    assert result.at[0, "new_sub_times"][-1][1] <= 12.0
