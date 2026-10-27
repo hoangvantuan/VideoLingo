@@ -12,6 +12,7 @@ _5_REMERGED = "output/log/translation_results_remerged.xlsx"
 
 _8_1_AUDIO_TASK = "output/audio/tts_tasks.xlsx"
 _10_DUB_TRUNCATED = "output/log/dub_truncated.json"
+_10_TTS_LONG_LINES = "output/log/tts_long_lines.json"  # custom
 
 
 # ------------------------------------------
@@ -47,6 +48,7 @@ __all__ = [
     "_5_REMERGED",
     "_8_1_AUDIO_TASK",
     "_10_DUB_TRUNCATED",
+    "_10_TTS_LONG_LINES",  # custom
     "_OUTPUT_DIR",
     "_AUDIO_DIR",
     "_RAW_AUDIO_FILE",

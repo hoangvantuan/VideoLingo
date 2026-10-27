@@ -16,13 +16,17 @@ from core.tts_backend.soniox_tts import soniox_tts  # custom
 from core.tts_backend.vertex_tts import vertex_tts  # custom
 from core.utils import *
 
+_ELLIPSIS = r"(?:\.{2,}|…|(?:\.\s+)+\.)"  # custom
+_LEADING_ELLIPSIS_RE = re.compile(rf'^(\s*["\'“‘«(\[{{]*)\s*(?:{_ELLIPSIS}\s*)+')  # custom
+_TRAILING_ELLIPSIS_RE = re.compile(rf'\s*(?:{_ELLIPSIS}\s*)+([,!?;:.]?["\'”’»)\]}}]*)\s*$')  # custom
+
 def clean_text_for_tts(text):
     """Remove problematic characters for TTS"""
     chars_to_remove = ['&', '®', '™', '©']
     for char in chars_to_remove:
         text = text.replace(char, '')
-    text = re.sub(r"^(?:\s*(?:\.{2,}|…))+", "", text)  # custom
-    text = re.sub(r"(?:(?:\.{2,}|…)\s*)+$", "", text)  # custom
+    text = _LEADING_ELLIPSIS_RE.sub(r"\1", text)  # custom
+    text = _TRAILING_ELLIPSIS_RE.sub(r"\1", text)  # custom
     text = re.sub(r"(\w)\.(md|py|json|ya?ml|ts|tsx|js|txt|sh|toml)\b", r"\1 \2", text, flags=re.IGNORECASE)  # custom
     return text.strip()
 
