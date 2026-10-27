@@ -370,3 +370,65 @@ def test_merge_chunks_trim_replaces_existing_temp_audio_with_resynthesized_line(
     assert result.at[0, "real_dur"] == 2.1
     assert result.at[0, "new_sub_times"][0][1] <= 12.0
     assert not (tmp_path / "log" / "dub_truncated.json").exists()
+
+
+def test_clean_text_for_tts_separates_file_extensions_without_touching_numbers_or_periods():
+    from core.tts_backend.tts_main import clean_text_for_tts
+
+    assert clean_text_for_tts("file agents.md hay claude.md,") == "file agents md hay claude md,"
+    assert (
+        clean_text_for_tts("như codingstandards.md, config.yaml, config.yml, main.py, package.json, index.ts, App.tsx, app.js, notes.txt, skills.sh, pyproject.toml.")
+        == "như codingstandards md, config yaml, config yml, main py, package json, index ts, App tsx, app js, notes txt, skills sh, pyproject toml."
+    )
+    assert (
+        clean_text_for_tts("Tốc độ 1.4 ở bản v1.2.0 đã ổn định.")
+        == "Tốc độ 1.4 ở bản v1.2.0 đã ổn định."
+    )
+
+
+def test_generate_tts_audio_reruns_row_once_when_real_dur_exceeds_twice_est_dur(monkeypatch, tmp_path):
+    import pandas as pd
+    from pydub import AudioSegment
+    from pydub.generators import Sine
+    from core import _10_gen_audio as audio
+
+    monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(
+        audio,
+        "get_audio_duration",
+        lambda path: len(AudioSegment.from_wav(path)) / 1000,
+    )
+
+    def write_wav(path, seconds):
+        Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
+
+    tts_calls = []
+    durations = iter([5.0, 2.2])
+
+    def fake_tts(text, save_as, number, tasks_df):
+        tts_calls.append((text, number))
+        write_wav(save_as, next(durations))
+
+    monkeypatch.setattr(audio, "tts_main", fake_tts)
+    monkeypatch.setattr(
+        audio,
+        "ask_gpt",
+        lambda prompt, **kw: {"text": "npx skills at latest add mattpocock slash skills."},
+    )
+
+    tasks = pd.DataFrame(
+        {
+            "number": [1],
+            "est_dur": [2.0],
+            "lines": [["npx skills@latest add mattpocock/skills."]],
+        }
+    )
+
+    result = audio.generate_tts_audio(tasks)
+
+    assert tts_calls == [
+        ("npx skills@latest add mattpocock/skills.", 1),
+        ("npx skills at latest add mattpocock slash skills.", 1),
+    ]
+    assert result.at[0, "real_dur"] == 2.2
+    assert result.at[0, "lines"] == ["npx skills@latest add mattpocock/skills."]

@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from core.utils import *
 from core.utils.models import *
-from core.prompts import get_subtitle_trim_prompt
+from core.prompts import get_correct_text_prompt, get_subtitle_trim_prompt
 from core.asr_backend.audio_preprocess import get_audio_duration
 from core.tts_backend.tts_main import tts_main
 
@@ -88,6 +88,37 @@ def process_row(row: pd.Series, tasks_df: pd.DataFrame) -> Tuple[int, float]:
         temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
         tts_main(line, temp_file, number, tasks_df)
         real_dur += get_audio_duration(temp_file)
+    est_dur = row.get('est_dur')
+    if pd.notna(est_dur) and est_dur > 0 and real_dur > 2 * est_dur:
+        rprint(f"[yellow]⚠️ Row {number} real_dur ({real_dur:.2f}s) > 2x est_dur ({est_dur:.2f}s), retrying TTS once...[/yellow]")
+        real_dur = 0
+        for line_index, line in enumerate(lines):
+            temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
+            retry_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}_retry")
+            if os.path.exists(retry_file):
+                os.remove(retry_file)
+            try:
+                response = ask_gpt(
+                    get_correct_text_prompt(line),
+                    resp_type='json',
+                    log_title='tts_correct_text',
+                )
+                retry_line = str(response.get('text', '')).strip() if isinstance(response, dict) else ''
+            except Exception:
+                retry_line = ''
+            try:
+                tts_main(retry_line or line, retry_file, number, tasks_df)
+                if os.path.exists(retry_file) and (
+                    not os.path.exists(temp_file)
+                    or 0 < get_audio_duration(retry_file) < get_audio_duration(temp_file)
+                ):
+                    os.replace(retry_file, temp_file)
+            except Exception as e:
+                rprint(f"[yellow]⚠️ Retrying line {number}_{line_index} failed, keeping the old audio: {e}[/yellow]")
+            finally:
+                if os.path.exists(retry_file):
+                    os.remove(retry_file)
+            real_dur += get_audio_duration(temp_file)
     return number, real_dur
 
 def generate_tts_audio(tasks_df: pd.DataFrame) -> pd.DataFrame:
