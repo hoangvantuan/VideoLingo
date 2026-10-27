@@ -21,6 +21,8 @@ def clean_text_for_tts(text):
     chars_to_remove = ['&', '®', '™', '©']
     for char in chars_to_remove:
         text = text.replace(char, '')
+    text = re.sub(r"^(?:\s*(?:\.{2,}|…))+", "", text)  # custom
+    text = re.sub(r"(?:(?:\.{2,}|…)\s*)+$", "", text)  # custom
     text = re.sub(r"(\w)\.(md|py|json|ya?ml|ts|tsx|js|txt|sh|toml)\b", r"\1 \2", text, flags=re.IGNORECASE)  # custom
     return text.strip()
 
