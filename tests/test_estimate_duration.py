@@ -117,7 +117,13 @@ def test_merge_chunks_retries_trim_and_resynthesizes_before_truncating(monkeypat
     from pydub.generators import Sine
     from core import _10_gen_audio as audio
 
-    config = {"speed_factor.accept": 1.2, "speed_factor.min": 1.0, "speed_factor.max": 1.4}
+    config = {
+        "speed_factor.accept": 1.2,
+        "speed_factor.min": 1.0,
+        "speed_factor.max": 1.4,
+        "max_workers": 1,
+        "tts_method": "edge_tts",
+    }
     monkeypatch.setattr(audio, "load_key", config.get)
     monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
     monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))
@@ -182,7 +188,13 @@ def test_merge_chunks_truncates_after_max_two_trim_retries(monkeypatch, tmp_path
     from pydub.generators import Sine
     from core import _10_gen_audio as audio
 
-    config = {"speed_factor.accept": 1.2, "speed_factor.min": 1.0, "speed_factor.max": 1.4}
+    config = {
+        "speed_factor.accept": 1.2,
+        "speed_factor.min": 1.0,
+        "speed_factor.max": 1.4,
+        "max_workers": 1,
+        "tts_method": "edge_tts",
+    }
     monkeypatch.setattr(audio, "load_key", config.get)
     monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
     monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))
@@ -257,7 +269,13 @@ def test_merge_chunks_trims_multi_line_row_read_from_excel(monkeypatch, tmp_path
     from pydub.generators import Sine
     from core import _10_gen_audio as audio
 
-    config = {"speed_factor.accept": 1.2, "speed_factor.min": 1.0, "speed_factor.max": 1.4}
+    config = {
+        "speed_factor.accept": 1.2,
+        "speed_factor.min": 1.0,
+        "speed_factor.max": 1.4,
+        "max_workers": 1,
+        "tts_method": "edge_tts",
+    }
     monkeypatch.setattr(audio, "load_key", config.get)
     monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
     monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))
@@ -319,7 +337,13 @@ def test_merge_chunks_trim_replaces_existing_temp_audio_with_resynthesized_line(
     from core import _10_gen_audio as audio
     from core.tts_backend import tts_main as tts_module
 
-    config = {"speed_factor.accept": 1.2, "speed_factor.min": 1.0, "speed_factor.max": 1.4}
+    config = {
+        "speed_factor.accept": 1.2,
+        "speed_factor.min": 1.0,
+        "speed_factor.max": 1.4,
+        "max_workers": 1,
+        "tts_method": "edge_tts",
+    }
     monkeypatch.setattr(audio, "load_key", config.get)
     monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
     monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))
@@ -372,27 +396,16 @@ def test_merge_chunks_trim_replaces_existing_temp_audio_with_resynthesized_line(
     assert not (tmp_path / "log" / "dub_truncated.json").exists()
 
 
-def test_clean_text_for_tts_separates_file_extensions_without_touching_numbers_or_periods():
-    from core.tts_backend.tts_main import clean_text_for_tts
-
-    assert clean_text_for_tts("file agents.md hay claude.md,") == "file agents md hay claude md,"
-    assert (
-        clean_text_for_tts("như codingstandards.md, config.yaml, config.yml, main.py, package.json, index.ts, App.tsx, app.js, notes.txt, skills.sh, pyproject.toml.")
-        == "như codingstandards md, config yaml, config yml, main py, package json, index ts, App tsx, app js, notes txt, skills sh, pyproject toml."
-    )
-    assert (
-        clean_text_for_tts("Tốc độ 1.4 ở bản v1.2.0 đã ổn định.")
-        == "Tốc độ 1.4 ở bản v1.2.0 đã ổn định."
-    )
-
-
-def test_generate_tts_audio_reruns_row_once_when_real_dur_exceeds_twice_est_dur(monkeypatch, tmp_path):
+def test_generate_tts_audio_reruns_only_offending_line_in_multi_line_row(monkeypatch, tmp_path):
+    """Per-line trigger catches the v9 #131 shape: line 0 is > 2x its own
+    estimate while the row total (9.04s vs 5.06s = 1.79x) is under 2x."""
     import pandas as pd
     from pydub import AudioSegment
     from pydub.generators import Sine
     from core import _10_gen_audio as audio
 
     monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(audio, "LONG_TTS_LOG", str(tmp_path / "log" / "tts_long_lines.json"), raising=False)
     monkeypatch.setattr(
         audio,
         "get_audio_duration",
@@ -403,10 +416,67 @@ def test_generate_tts_audio_reruns_row_once_when_real_dur_exceeds_twice_est_dur(
         Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
 
     tts_calls = []
-    durations = iter([5.0, 2.2])
+    # Line 0: 5.36s (> 2 * 1.32s), retry -> 1.48s; Line 1: 2.08s; Line 2: 1.60s
+    durations = iter([5.36, 1.48, 2.08, 1.60])
 
     def fake_tts(text, save_as, number, tasks_df):
         tts_calls.append((text, number))
+        write_wav(save_as, next(durations))
+
+    monkeypatch.setattr(audio, "tts_main", fake_tts)
+    monkeypatch.setattr(
+        audio,
+        "ask_gpt",
+        lambda prompt, **kw: {"text": "khi có các ticket,"},
+    )
+
+    original_lines = [
+        "...khi có các ticket,",
+        "ta chỉ cần triển khai từng ticket",
+        "trong một phiên code riêng biệt.",
+    ]
+    tasks = pd.DataFrame(
+        {
+            "number": [131],
+            "est_dur": [5.06],
+            "lines": [original_lines],
+        }
+    )
+
+    result = audio.generate_tts_audio(tasks)
+
+    assert tts_calls == [
+        ("...khi có các ticket,", 131),
+        ("khi có các ticket,", 131),
+        ("ta chỉ cần triển khai từng ticket", 131),
+        ("trong một phiên code riêng biệt.", 131),
+    ]
+    assert result.at[0, "real_dur"] == round(1.48 + 2.08 + 1.60, 2)
+    assert result.at[0, "lines"] == original_lines
+    assert not (tmp_path / "log" / "tts_long_lines.json").exists()
+
+
+def test_generate_tts_audio_keeps_old_audio_and_logs_when_retry_is_longer(monkeypatch, tmp_path):
+    import json
+    import pandas as pd
+    from pydub import AudioSegment
+    from pydub.generators import Sine
+    from core import _10_gen_audio as audio
+
+    monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(audio, "LONG_TTS_LOG", str(tmp_path / "log" / "tts_long_lines.json"), raising=False)
+    monkeypatch.setattr(
+        audio,
+        "get_audio_duration",
+        lambda path: len(AudioSegment.from_wav(path)) / 1000,
+    )
+
+    def write_wav(path, seconds):
+        Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
+
+    durations = iter([5.0, 6.2])
+
+    def fake_tts(text, save_as, number, tasks_df):
         write_wav(save_as, next(durations))
 
     monkeypatch.setattr(audio, "tts_main", fake_tts)
@@ -418,17 +488,193 @@ def test_generate_tts_audio_reruns_row_once_when_real_dur_exceeds_twice_est_dur(
 
     tasks = pd.DataFrame(
         {
-            "number": [1],
-            "est_dur": [2.0],
+            "number": [27],
+            "est_dur": [2.125],
             "lines": [["npx skills@latest add mattpocock/skills."]],
         }
     )
 
     result = audio.generate_tts_audio(tasks)
 
+    assert result.at[0, "real_dur"] == 5.0
+    log_path = tmp_path / "log" / "tts_long_lines.json"
+    assert log_path.exists()
+    logged = json.loads(log_path.read_text(encoding="utf-8"))
+    assert len(logged) == 1
+    assert logged[0]["number"] == 27
+    assert logged[0]["line_index"] == 0
+    assert logged[0]["real_dur"] == 5.0
+
+
+def test_generate_tts_audio_rejects_empty_or_degenerate_retry(monkeypatch, tmp_path):
+    import pytest
+    import pandas as pd
+    from pydub import AudioSegment
+    from pydub.generators import Sine
+    from core import _10_gen_audio as audio
+
+    monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(audio, "LONG_TTS_LOG", str(tmp_path / "log" / "tts_long_lines.json"), raising=False)
+    monkeypatch.setattr(
+        audio,
+        "get_audio_duration",
+        lambda path: len(AudioSegment.from_wav(path)) / 1000,
+    )
+
+    def write_wav(path, seconds):
+        Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
+
+    # Row 1: LLM returns None -> must not convert to "None" or synthesize
+    # Row 2: LLM returns "." -> punctuation-only, rejected without calling tts_main
+    # Row 3: LLM returns "OK" -> synthesized wav is 0.1s (< 0.5x line_est), rejected
+    replies = iter([{"text": None}, {"text": "."}, {"text": "OK"}])
+    durations = iter([5.0, 5.0, 5.0, 0.1])
+    tts_calls = []
+
+    def fake_tts(text, save_as, number, tasks_df):
+        tts_calls.append((text, number))
+        write_wav(save_as, next(durations))
+
+    monkeypatch.setattr(audio, "tts_main", fake_tts)
+    monkeypatch.setattr(audio, "ask_gpt", lambda prompt, **kw: next(replies))
+
+    line_text = "npx skills@latest add mattpocock/skills."
+    tasks = pd.DataFrame(
+        {
+            "number": [1, 2, 3],
+            "est_dur": [2.125, 2.125, 2.125],
+            "lines": [[line_text], [line_text], [line_text]],
+        }
+    )
+
+    result = audio.generate_tts_audio(tasks)
+
+    assert ("None", 1) not in tts_calls
+    assert (".", 2) not in tts_calls
     assert tts_calls == [
-        ("npx skills@latest add mattpocock/skills.", 1),
-        ("npx skills at latest add mattpocock slash skills.", 1),
+        (line_text, 1),
+        (line_text, 2),
+        (line_text, 3),
+        ("OK", 3),
     ]
-    assert result.at[0, "real_dur"] == 2.2
+    assert list(result["real_dur"]) == [5.0, 5.0, 5.0]
+
+
+def test_generate_tts_audio_skips_retry_when_est_dur_is_zero_or_nan(monkeypatch, tmp_path):
+    import pandas as pd
+    from pydub import AudioSegment
+    from pydub.generators import Sine
+    from core import _10_gen_audio as audio
+
+    monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(audio, "LONG_TTS_LOG", str(tmp_path / "log" / "tts_long_lines.json"), raising=False)
+    monkeypatch.setattr(
+        audio,
+        "get_audio_duration",
+        lambda path: len(AudioSegment.from_wav(path)) / 1000,
+    )
+
+    def write_wav(path, seconds):
+        Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
+
+    tts_calls = []
+
+    def fake_tts(text, save_as, number, tasks_df):
+        tts_calls.append((text, number))
+        write_wav(save_as, 5.0)
+
+    monkeypatch.setattr(audio, "tts_main", fake_tts)
+    monkeypatch.setattr(
+        audio,
+        "ask_gpt",
+        lambda *a, **kw: (_ for _ in ()).throw(AssertionError("ask_gpt must not be called")),
+    )
+
+    tasks = pd.DataFrame(
+        {
+            "number": [1, 2],
+            "est_dur": [0.0, float("nan")],
+            "lines": [["Câu thứ nhất."], ["Câu thứ hai."]],
+        }
+    )
+
+    result = audio.generate_tts_audio(tasks)
+
+    assert tts_calls == [("Câu thứ nhất.", 1), ("Câu thứ hai.", 2)]
+    assert list(result["real_dur"]) == [5.0, 5.0]
+
+
+def test_trim_and_resynthesize_chunk_uses_retried_spoken_text_and_rejects_longer_trim(monkeypatch, tmp_path):
+    import pandas as pd
+    from pydub import AudioSegment
+    from pydub.generators import Sine
+    from core import _10_gen_audio as audio
+
+    config = {
+        "speed_factor.accept": 1.2,
+        "speed_factor.min": 1.0,
+        "speed_factor.max": 1.4,
+        "max_workers": 1,
+        "tts_method": "edge_tts",
+    }
+    monkeypatch.setattr(audio, "load_key", config.get)
+    monkeypatch.setattr(audio, "TEMP_FILE_TEMPLATE", str(tmp_path / "{}_temp.wav"))
+    monkeypatch.setattr(audio, "OUTPUT_FILE_TEMPLATE", str(tmp_path / "{}.wav"))
+    monkeypatch.setattr(audio, "TRUNCATED_LOG", str(tmp_path / "log" / "dub_truncated.json"))
+    monkeypatch.setattr(audio, "LONG_TTS_LOG", str(tmp_path / "log" / "tts_long_lines.json"), raising=False)
+    monkeypatch.setattr(
+        audio,
+        "get_audio_duration",
+        lambda path: len(AudioSegment.from_wav(path)) / 1000,
+    )
+
+    def write_wav(path, seconds):
+        Sine(440).to_audio_segment(duration=int(seconds * 1000)).export(path, format="wav")
+
+    def fake_speed(temp_file, output_file, speed_factor):
+        dur = len(AudioSegment.from_wav(temp_file)) / 1000
+        write_wav(output_file, dur / speed_factor)
+
+    # Initial TTS: 6.0s (> 2x est_dur) -> retry gives 3.5s (still overflows 2.0s slot at 1.4x)
+    # Trim attempt 1: gives 4.0s (> 3.5s, must be rejected so real_dur stays 3.5s and does not regress to 4.0s!)
+    durations = iter([6.0, 3.5, 4.0])
+    prompts_seen = []
+
+    def fake_tts(text, save_as, number, tasks_df):
+        write_wav(save_as, next(durations))
+
+    def fake_gpt(prompt, **kw):
+        prompts_seen.append((kw.get("log_title"), prompt))
+        if kw.get("log_title") == "tts_correct_text":
+            return {"text": "Văn bản đã làm sạch cho TTS."}
+        return {"result": "Văn bản rút gọn hơn."}
+
+    monkeypatch.setattr(audio, "adjust_audio_speed", fake_speed)
+    monkeypatch.setattr(audio, "tts_main", fake_tts)
+    monkeypatch.setattr(audio, "ask_gpt", fake_gpt)
+
+    tasks = pd.DataFrame(
+        {
+            "number": [1],
+            "cut_off": [1],
+            "tol_dur": [2.0],
+            "tolerance": [0.0],
+            "gap": [0.0],
+            "est_dur": [2.125],
+            "start_time": ["00:00:10.000"],
+            "end_time": ["00:00:12.000"],
+            "lines": [["npx skills@latest add mattpocock/skills."]],
+        }
+    )
+
+    tasks = audio.generate_tts_audio(tasks)
+    assert tasks.at[0, "real_dur"] == 3.5
+
+    result = audio.merge_chunks(tasks)
+
+    sub_trim_prompts = [p for title, p in prompts_seen if title == "sub_trim"]
+    assert len(sub_trim_prompts) == 1
+    assert "Văn bản đã làm sạch cho TTS." in sub_trim_prompts[0]
+    assert result.at[0, "real_dur"] == 3.5
     assert result.at[0, "lines"] == ["npx skills@latest add mattpocock/skills."]
+

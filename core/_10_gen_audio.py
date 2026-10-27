@@ -1,5 +1,6 @@
 import os
 import json
+import re
 from core.utils.task_literals import parse_task_literal
 import time
 import shutil
@@ -16,6 +17,7 @@ from core.utils import *
 from core.utils.models import *
 from core.prompts import get_correct_text_prompt, get_subtitle_trim_prompt
 from core.asr_backend.audio_preprocess import get_audio_duration
+from core.tts_backend.estimate_duration import init_estimator, estimate_duration
 from core.tts_backend.tts_main import tts_main
 
 console = Console()
@@ -23,8 +25,23 @@ console = Console()
 TEMP_FILE_TEMPLATE = f"{_AUDIO_TMP_DIR}/{{}}_temp.wav"
 OUTPUT_FILE_TEMPLATE = f"{_AUDIO_SEGS_DIR}/{{}}.wav"
 TRUNCATED_LOG = _10_DUB_TRUNCATED
+LONG_TTS_LOG = "output/log/tts_long_lines.json"
 WARMUP_SIZE = 5
 MAX_TRIM_RETRIES = 2
+ESTIMATOR = None
+_SPOKEN_TEXT: dict[tuple[int, int], str] = {}
+_LONG_TTS_LINES: list[dict] = []
+
+
+def _get_estimator():
+    global ESTIMATOR
+    if ESTIMATOR is None:
+        ESTIMATOR = init_estimator()
+    return ESTIMATOR
+
+
+def _has_words(text: str) -> bool:
+    return len(re.findall(r'\w', text)) > 1
 
 def parse_df_srt_time(time_str: str) -> float:
     """Convert SRT time format to seconds"""
@@ -83,17 +100,18 @@ def process_row(row: pd.Series, tasks_df: pd.DataFrame) -> Tuple[int, float]:
     """Helper function for processing single row data"""
     number = row['number']
     lines = parse_task_literal(row['lines'])
+    row_est = row.get('est_dur', 1.0)
+    can_retry = pd.notna(row_est) and float(row_est) > 0
     real_dur = 0
     for line_index, line in enumerate(lines):
+        check_cancel()
         temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
         tts_main(line, temp_file, number, tasks_df)
-        real_dur += get_audio_duration(temp_file)
-    est_dur = row.get('est_dur')
-    if pd.notna(est_dur) and est_dur > 0 and real_dur > 2 * est_dur:
-        rprint(f"[yellow]⚠️ Row {number} real_dur ({real_dur:.2f}s) > 2x est_dur ({est_dur:.2f}s), retrying TTS once...[/yellow]")
-        real_dur = 0
-        for line_index, line in enumerate(lines):
-            temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
+        line_dur = get_audio_duration(temp_file)
+        line_est = estimate_duration(line, _get_estimator()) if can_retry else 0.0
+        if line_est > 0 and line_dur > 2 * line_est:
+            check_cancel()
+            rprint(f"[yellow]⚠️ Line {number}_{line_index} real_dur ({line_dur:.2f}s) > 2x est_dur ({line_est:.2f}s), retrying TTS once...[/yellow]")
             retry_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}_retry")
             if os.path.exists(retry_file):
                 os.remove(retry_file)
@@ -103,28 +121,43 @@ def process_row(row: pd.Series, tasks_df: pd.DataFrame) -> Tuple[int, float]:
                     resp_type='json',
                     log_title='tts_correct_text',
                 )
-                retry_line = str(response.get('text', '')).strip() if isinstance(response, dict) else ''
-            except Exception:
-                retry_line = ''
-            try:
-                tts_main(retry_line or line, retry_file, number, tasks_df)
-                if os.path.exists(retry_file) and (
-                    not os.path.exists(temp_file)
-                    or 0 < get_audio_duration(retry_file) < get_audio_duration(temp_file)
-                ):
-                    os.replace(retry_file, temp_file)
+                retry_line = str(response.get('text') or '').strip() if isinstance(response, dict) else ''
             except Exception as e:
-                rprint(f"[yellow]⚠️ Retrying line {number}_{line_index} failed, keeping the old audio: {e}[/yellow]")
-            finally:
-                if os.path.exists(retry_file):
-                    os.remove(retry_file)
-            real_dur += get_audio_duration(temp_file)
+                rprint(f"[yellow]⚠️ Correcting text for line {number}_{line_index} failed: {e}[/yellow]")
+                retry_line = ''
+            if _has_words(retry_line):
+                try:
+                    tts_main(retry_line, retry_file, number, tasks_df)
+                    if os.path.exists(retry_file):
+                        retry_dur = get_audio_duration(retry_file)
+                        if 0.5 * line_est <= retry_dur < line_dur:
+                            os.replace(retry_file, temp_file)
+                            line_dur = retry_dur
+                            _SPOKEN_TEXT[(int(number), line_index)] = retry_line
+                except Exception as e:
+                    rprint(f"[yellow]⚠️ Retrying line {number}_{line_index} failed, keeping the old audio: {e}[/yellow]")
+                finally:
+                    if os.path.exists(retry_file):
+                        os.remove(retry_file)
+            else:
+                rprint(f"[yellow]⚠️ Corrected text for line {number}_{line_index} is empty or degenerate ({retry_line!r}), keeping the old audio[/yellow]")
+            if line_dur > 2 * line_est:
+                _LONG_TTS_LINES.append({
+                    "number": int(number),
+                    "line_index": int(line_index),
+                    "line": str(line),
+                    "est_dur": round(float(line_est), 3),
+                    "real_dur": round(float(line_dur), 3),
+                })
+        real_dur += line_dur
     return number, real_dur
 
 def generate_tts_audio(tasks_df: pd.DataFrame) -> pd.DataFrame:
     """Generate TTS audio sequentially and calculate actual duration"""
     # pandas 3 rejects fractional durations assigned into an integer column.
     tasks_df['real_dur'] = 0.0
+    _SPOKEN_TEXT.clear()
+    _LONG_TTS_LINES.clear()
     rprint("[bold green]🎯 Starting TTS audio generation...[/bold green]")
     
     with Progress() as progress:
@@ -170,6 +203,7 @@ def generate_tts_audio(tasks_df: pd.DataFrame) -> pd.DataFrame:
                         f.cancel()
                     raise
 
+    save_long_tts_log(_LONG_TTS_LINES)
     rprint("[bold green]✨ TTS audio generation completed![/bold green]")
     return tasks_df
 
@@ -235,19 +269,23 @@ def _trim_and_resynthesize_chunk(
     for main_df_idx, line_index, _, line in placed:
         if main_df_idx not in overflow_rows:
             continue
+        number = tasks_df.at[main_df_idx, 'number']
+        was_retried = (int(number), line_index) in _SPOKEN_TEXT
+        spoken_line = _SPOKEN_TEXT.get((int(number), line_index), line)
         start, end = tasks_df.at[main_df_idx, 'new_sub_times'][line_index]
         spoken_dur = max(0.1, end - start)
         target_duration = round(spoken_dur * (chunk_window / total_spoken), 2)
         try:
-            prompt = get_subtitle_trim_prompt(line, target_duration)
+            prompt = get_subtitle_trim_prompt(spoken_line, target_duration)
             response = ask_gpt(prompt, resp_type='json', log_title='sub_trim', valid_def=valid_trim)
-            shortened = str(response.get('result', '')).strip() if isinstance(response, dict) else ''
-        except Exception:
+            shortened = str(response.get('result') or '').strip() if isinstance(response, dict) else ''
+        except Exception as e:
+            rprint(f"[yellow]⚠️ Trimming line {number}_{line_index} failed: {e}[/yellow]")
             shortened = ''
-        if not shortened or shortened == line:
+        if not shortened or shortened == spoken_line or not _has_words(shortened):
             continue
-        number = tasks_df.at[main_df_idx, 'number']
         temp_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}")
+        old_dur = get_audio_duration(temp_file) if os.path.exists(temp_file) else float('inf')
         # tts_main skips a path that exists, and the old audio is there already.
         # Synthesize next to it and swap, so a TTS error keeps the old audio.
         trim_file = TEMP_FILE_TEMPLATE.format(f"{number}_{line_index}_trim")
@@ -255,19 +293,27 @@ def _trim_and_resynthesize_chunk(
             os.remove(trim_file)
         try:
             tts_main(shortened, trim_file, number, tasks_df)
+            trim_dur = get_audio_duration(trim_file) if os.path.exists(trim_file) else 0.0
+            if not (0 < trim_dur <= old_dur) or (was_retried and trim_dur >= old_dur):
+                if os.path.exists(trim_file):
+                    os.remove(trim_file)
+                continue
             os.replace(trim_file, temp_file)
+            if was_retried:
+                _SPOKEN_TEXT[(int(number), line_index)] = shortened
         except Exception as e:
             rprint(f"[yellow]⚠️ Re-synthesizing trimmed line {number}_{line_index} failed, keeping the old audio: {e}[/yellow]")
             if os.path.exists(trim_file):
                 os.remove(trim_file)
             continue
-        row_lines = list(parse_task_literal(tasks_df.at[main_df_idx, 'lines']))
-        row_lines[line_index] = shortened
-        # Read from Excel, `lines` is a string column (StringDtype on pandas 3),
-        # which refuses a list value of more than one item.
-        if tasks_df['lines'].dtype != object:
-            tasks_df['lines'] = tasks_df['lines'].astype(object)
-        tasks_df.at[main_df_idx, 'lines'] = row_lines
+        if not was_retried:
+            row_lines = list(parse_task_literal(tasks_df.at[main_df_idx, 'lines']))
+            row_lines[line_index] = shortened
+            # Read from Excel, `lines` is a string column (StringDtype on pandas 3),
+            # which refuses a list value of more than one item.
+            if tasks_df['lines'].dtype != object:
+                tasks_df['lines'] = tasks_df['lines'].astype(object)
+            tasks_df.at[main_df_idx, 'lines'] = row_lines
         updated_rows.add(main_df_idx)
 
     for main_df_idx in updated_rows:
@@ -351,9 +397,22 @@ def merge_chunks(tasks_df: pd.DataFrame) -> pd.DataFrame:
                     })
             chunk_start = index+1
     
+    _SPOKEN_TEXT.clear()
     save_truncated_log(truncated)
     rprint("[bold green]✅ Audio chunks processing completed![/bold green]")
     return tasks_df
+
+def save_long_tts_log(long_lines: list) -> None:
+    """List the lines whose TTS duration exceeded 2x estimated duration even after retry"""
+    if os.path.exists(LONG_TTS_LOG):
+        os.remove(LONG_TTS_LOG)
+    if not long_lines:
+        return
+    ordered = sorted(long_lines, key=lambda item: (item["number"], item["line_index"]))
+    os.makedirs(os.path.dirname(LONG_TTS_LOG), exist_ok=True)
+    with open(LONG_TTS_LOG, 'w', encoding='utf-8') as f:
+        json.dump(ordered, f, ensure_ascii=False, indent=4)
+    rprint(f"[yellow]⚠️ {len(ordered)} TTS line(s) still exceeded 2x estimated duration after retry, see `{LONG_TTS_LOG}`[/yellow]")
 
 def save_truncated_log(truncated: list) -> None:
     """List the lines whose dubbing was cut so they can be shortened by hand"""

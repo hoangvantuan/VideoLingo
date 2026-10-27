@@ -21,7 +21,7 @@ def clean_text_for_tts(text):
     chars_to_remove = ['&', '®', '™', '©']
     for char in chars_to_remove:
         text = text.replace(char, '')
-    text = re.sub(r"(\w)\.(md|py|json|ya?ml|ts|tsx|js|txt|sh|toml)\b", r"\1 \2", text, flags=re.IGNORECASE)
+    text = re.sub(r"(\w)\.(md|py|json|ya?ml|ts|tsx|js|txt|sh|toml)\b", r"\1 \2", text, flags=re.IGNORECASE)  # custom
     return text.strip()
 
 def tts_main(text, save_as, number, task_df):
