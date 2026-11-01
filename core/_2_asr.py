@@ -1,6 +1,6 @@
 from core.utils import *
 from core.asr_backend.audio_preprocess import process_transcription, convert_video_to_audio, prepare_audio_for_asr, split_audio, save_results, normalize_audio_volume
-from core._1_ytdlp import find_media_file
+from core._1_ytdlp import find_media_file, find_captions
 from core.utils.models import *
 from core.asr_backend import transcription_cache as cache
 
@@ -34,11 +34,33 @@ def prepare_audio(media_file, media_type, demucs):
     demucs_audio()
     return normalize_audio_volume(_VOCAL_AUDIO_FILE, _VOCAL_AUDIO_FILE, format="mp3")
 
+def transcribe_youtube_captions():
+    """Custom: the words of the captions downloaded with the YouTube video, without a recognition."""
+    from core.asr_backend.youtube_captions import read_captions
+    captions = find_captions()
+    if not captions:
+        raise ValueError("No YouTube captions in the language of the video were downloaded with the input. "
+                         "Download the video again with the youtube runtime, or select another runtime.")
+    whisper_language = load_key("whisper.language")
+    if whisper_language not in ("auto", captions["language"]):
+        rprint(f"[yellow]⚠️ The captions are in `{captions['language']}`, not in `{whisper_language}`.[/yellow]")
+    language = captions["language"]
+    media_file, media_type = find_media_file()
+    prepare_audio(media_file, media_type, load_key("demucs"))  # the dubbing needs the audio
+    df = process_transcription(read_captions(captions["path"]))
+    if df.empty:
+        raise ValueError("The YouTube captions have no words.")
+    update_key("whisper.detected_language", language)
+    save_results(df)
+    rprint(f"[green]📄 The {captions['kind']} YouTube captions (`{language}`) are used instead of the recognition.[/green]")
+
 @check_file_exists(_2_CLEANED_CHUNKS)
 def transcribe():
     runtime = load_key("whisper.runtime")
-    if runtime not in ("local", "elevenlabs", "mai", "soniox"):  # custom: soniox
-        raise ValueError("Select local, elevenlabs, mai or soniox for whisper.runtime. The 302.ai WhisperX cloud service has been retired.")
+    if runtime not in ("local", "elevenlabs", "mai", "soniox", "youtube"):  # custom: soniox, youtube
+        raise ValueError("Select local, elevenlabs, mai, soniox or youtube for whisper.runtime. The 302.ai WhisperX cloud service has been retired.")
+    if runtime == "youtube":  # custom
+        return transcribe_youtube_captions()
     if runtime == "local" and local_backend(load_key("whisper")) == "whisperx":
         from importlib.util import find_spec
         if find_spec("whisperx") is None:

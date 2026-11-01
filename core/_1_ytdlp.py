@@ -63,8 +63,19 @@ def download_video_ytdlp(url, save_path='output', resolution='1080'):
 
     # Get YoutubeDL class after updating
     YoutubeDL = update_ytdlp()
+    captions = None
     with YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
+        if load_key_or("whisper.runtime", None) == "youtube":  # custom: the captions of the video instead of the recognition
+            from core.asr_backend.youtube_captions import save_captions
+            info = ydl.extract_info(url, download=True)
+            try:
+                captions = save_captions(ydl, info, save_path)
+            except Exception as e:
+                rprint(f"[yellow]⚠️ The captions of the video could not be downloaded: {e}[/yellow]")
+            if not captions:
+                rprint("[yellow]⚠️ The video has no captions in its own language.[/yellow]")
+        else:
+            ydl.download([url])
     
     # Check and rename files after download
     for file in os.listdir(save_path):
@@ -76,15 +87,17 @@ def download_video_ytdlp(url, save_path='output', resolution='1080'):
             if new_filename != filename:
                 os.rename(os.path.join(save_path, file), os.path.join(save_path, new_filename + ext))
     media_file = find_video_files(save_path)
-    write_input_manifest(media_file, "video", save_path)
+    write_input_manifest(media_file, "video", save_path, captions=captions)
 
-def write_input_manifest(media_file: str, media_type: str, save_path='output', subtitle_file=None):
+def write_input_manifest(media_file: str, media_type: str, save_path='output', subtitle_file=None, captions=None):
     os.makedirs(save_path, exist_ok=True)
     manifest_path = os.path.join(save_path, INPUT_MANIFEST)
     media_path = media_file.replace("\\", "/") if sys.platform.startswith('win') else media_file
     manifest = {"path": media_path, "type": media_type}
     if subtitle_file:
         manifest["subtitle"] = subtitle_file.replace("\\", "/")
+    if captions:  # custom: {"path", "language", "kind"} of the YouTube captions
+        manifest["captions"] = {**captions, "path": captions["path"].replace("\\", "/")}
     with open(manifest_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, ensure_ascii=False, indent=2)
 
@@ -108,6 +121,15 @@ def find_subtitle_file(save_path='output'):
     with open(manifest_path, "r", encoding="utf-8") as f:
         subtitle_file = json.load(f).get("subtitle")
     return subtitle_file if subtitle_file and os.path.exists(subtitle_file) else None
+
+def find_captions(save_path='output'):
+    """Custom: {"path", "language", "kind"} of the YouTube captions downloaded with the video, or None."""
+    manifest_path = os.path.join(save_path, INPUT_MANIFEST)
+    if not os.path.exists(manifest_path):
+        return None
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        captions = json.load(f).get("captions")
+    return captions if captions and os.path.exists(captions.get("path", "")) else None
 
 def find_video_files(save_path='output'):
     video_files = [file for file in glob.glob(save_path + "/*") if os.path.isfile(file) and os.path.splitext(file)[1][1:].lower() in load_key("allowed_video_formats")]

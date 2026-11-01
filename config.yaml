@@ -61,7 +61,8 @@ whisper:
   # Recognition language ISO 639-1, or "auto"
   language: 'en'
   detected_language: 'en'
-  # Recognition runtime: "local" (default), "elevenlabs", "mai" (MAI-Transcribe-2) or "soniox" (custom).
+  # Recognition runtime: "local" (default), "elevenlabs", "mai" (MAI-Transcribe-2), "soniox" (custom)
+  # or "youtube" (custom: the original-language captions of a YouTube video, downloaded with it).
   runtime: 'soniox'
   # Local ASR backend: "qwen" (default: Qwen3-ASR + Qwen3-ForcedAligner-0.6B) or "whisperx".
   # whisperx is not installed by the installer. Install its packages yourself from

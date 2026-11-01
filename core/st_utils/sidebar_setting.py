@@ -229,7 +229,7 @@ def page_setting():
                 update_key("whisper.language", langs[lang])
                 st.rerun()
 
-        runtimes = ["local", "elevenlabs", "mai", "soniox"]  # custom: soniox
+        runtimes = ["local", "elevenlabs", "mai", "soniox", "youtube"]  # custom: soniox, youtube
         configured_runtime = load_key("whisper.runtime")
         if configured_runtime not in runtimes:
             st.warning(t("The 302.ai WhisperX cloud service has been retired. Select Local or ElevenLabs to continue."))
@@ -242,6 +242,7 @@ def page_setting():
                 "elevenlabs": t("ElevenLabs"),
                 "mai": t("MAI-Transcribe-2"),
                 "soniox": "Soniox",  # custom
+                "youtube": "YouTube captions",  # custom
             }[x],
             help=t(
                 "Local Qwen3-ASR runs best on an NVIDIA GPU or Apple Silicon (CPU works but is slow); cloud recognition requires a provider API key."
@@ -269,6 +270,8 @@ def page_setting():
                 st.warning(t("WhisperX is not installed. Follow the manual page (docs/pages/docs/whisperx-manual.en-US.md) and install the extra packages yourself, or set whisper.backend to qwen."))
         if runtime == "elevenlabs":
             key_input(t("ElevenLabs API"), "whisper.elevenlabs_api_key")  # custom: #21
+        elif runtime == "youtube":  # custom
+            st.caption("The captions in the language of the video are downloaded with it; translated tracks are never used.")
         elif runtime == "soniox":  # custom: SONIOX_API_KEY env var takes precedence
             key_input("Soniox API", "whisper.soniox_api_key",  # custom: F1/#21, masked
                       widget_key="whisper_soniox_api_key")  # custom: stable id, see tests/test_consecutive_edits.py

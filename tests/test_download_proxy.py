@@ -21,9 +21,9 @@ def options(tmp_path, youtube):
         def __exit__(self, *args): pass
         def download(self, urls): assert urls == ['https://video.example.com/item']
     namespace = {
-        'os': os, 'load_key': lambda key: youtube if key == 'youtube' else '',
+        'os': os, 'load_key': lambda key: youtube if key == 'youtube' else '', 'load_key_or': lambda key, default: default,
         'update_ytdlp': lambda: Download, 'find_video_files': lambda _: 'synthetic.mp4',
-        'write_input_manifest': lambda *a: None,
+        'write_input_manifest': lambda *a, **k: None,
     }
     exec(compile(tree, str(source), 'exec'), namespace)
     namespace['download_video_ytdlp']('https://video.example.com/item', str(tmp_path))
