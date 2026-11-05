@@ -52,6 +52,39 @@ def save_captions(ydl, info, save_path="output"):
     return {"path": path, "language": language, "kind": kind}
 
 
+_SPEAKER_MARKER_RE = re.compile(r"(?:>>+|<<+|(?:&gt;){2,}|(?:&lt;){2,})")
+_UNCERTAIN_CAPTION_RE = re.compile(r"\[\?\s*(.*?)\s*\?\]?", re.DOTALL)
+_UNCERTAIN_FRAGMENT_RE = re.compile(r"\[\?\s*|\s*\?\]")
+_CC_NON_SPEECH_RE = re.compile(
+    r"\[\s*(?:"
+    r"noise|inaudible|laughter|laughs|chuckles|snorts|applause|music|"
+    r"clears\s+throat|background(?:\s+noise|\s+music)?|audio\s+out|blank[_ ]audio|"
+    r"non-english\s+speech|video\s+playback|end\s+playback|gasps?|sighs?|"
+    r"overlapping(?:\s+speech)?|(?:crowd\s+)?cheering|sound|coughs?|silence|"
+    r"tiếng\s+ồn(?:\s+[^\]]*)?|không\s+nghe\s+rõ|không\s+rõ(?:\s+tiếng)?|"
+    r"không\s+thể\s+nghe\s+rõ|(?:tiếng\s+)?cười(?:\s+[^\]]*)?|tiếng\s+nền|"
+    r"âm\s+thanh\s+nền|mất\s+tiếng|mất\s+âm\s+thanh|hắng\s+giọng|(?:âm\s+)?nhạc|"
+    r"(?:tiếng\s+)?vỗ\s+tay|tiếng\s+nước\s+ngoài|tiếng\s+động|video\s+phát\s+lại|"
+    r"phát\s+video|hết\s+video|kết\s+thúc\s+video|hết\s+đoạn\s+phát|thở\s+dài|"
+    r"thở\s+hắt\s+ra|hít\s+(?:một\s+hơi|sâu|vào)|(?:tiếng\s+)?reo\s+hò|"
+    r"tiếng\s+(?:nói\s+)?(?:phía\s+sau|phía\s+dưới|dưới\s+lớp|ở\s+nền)|"
+    r"nói\s+đè(?:\s+nhau)?|đoạn\s+bị\s+che/hỏng|chỗ\s+trống|(?:tiếng\s+)?ho|im\s+lặng"
+    r")\s*\]",
+    re.IGNORECASE,
+)
+
+
+def clean_caption_text(text: str) -> str:
+    """Strip speaker-change markers (>>), non-speech CC tags ([laughter], [NOISE]), and unwrap [? word ?]."""
+    if not text:
+        return ""
+    text = _UNCERTAIN_CAPTION_RE.sub(r"\1", text)
+    text = _UNCERTAIN_FRAGMENT_RE.sub("", text)
+    text = _SPEAKER_MARKER_RE.sub(" ", text)
+    text = _CC_NON_SPEECH_RE.sub(" ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def _letters(text):
     return len(re.sub(r"[^\w]", "", text)) or 1
 
@@ -71,8 +104,11 @@ def json3_to_result(data):
             end = events[i + 1]["tStartMs"]  # automatic captions overlap the next one while it rolls in
         pieces = [(start + s.get("tOffsetMs", 0), s["utf8"]) for s in event["segs"] if (s.get("utf8") or "").strip()]
         words = []
-        for j, (piece_start, text) in enumerate(pieces):
+        for j, (piece_start, raw_text) in enumerate(pieces):
             piece_end = max(pieces[j + 1][0] if j + 1 < len(pieces) else end, piece_start)
+            text = clean_caption_text(raw_text)
+            if not text:
+                continue
             parts = text.split()
             total = sum(_letters(p) for p in parts)
             done = 0
@@ -81,8 +117,9 @@ def json3_to_result(data):
                 done += _letters(part)
                 words.append({"word": part, "start": round(word_start / 1000, 3),
                               "end": round((piece_start + (piece_end - piece_start) * done / total) / 1000, 3)})
-        segments.append({"start": round(start / 1000, 3), "end": round(end / 1000, 3),
-                         "text": " ".join(w["word"] for w in words), "words": words})
+        if words:
+            segments.append({"start": round(start / 1000, 3), "end": round(end / 1000, 3),
+                             "text": " ".join(w["word"] for w in words), "words": words})
     return {"segments": segments}
 
 

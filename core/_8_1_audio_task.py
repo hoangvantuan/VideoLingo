@@ -87,6 +87,7 @@ def process_srt():
             text = re.sub(r'（[^）]*）', '', text).strip()
             # Remove '-' character, can continue to add illegal characters that cause errors
             text = text.replace('-', '')
+            text = re.sub(r'(?:>>+|<<+)\s*', '', text).strip()
 
             # Add the original text from src_subs_for_audio.srt
             origin = src_subtitles.get(number, '')

@@ -15,6 +15,7 @@ ESTIMATOR = None
 def clean_line(text):
     """A line of the subtitles without the remarks in brackets and without the dashes of a dialogue."""
     text = re.sub(r'\([^)]*\)|（[^）]*）', '', text)
+    text = re.sub(r'(?:>>+|<<+)\s*', '', text)
     # A hyphen inside a word is a part of the word: "hands-on"
     return re.sub(r'(?<!\w)-|-(?!\w)', '', text).strip()
 

@@ -3,6 +3,12 @@ import re
 from pydub import AudioSegment
 
 from core.asr_backend.audio_preprocess import get_audio_duration
+from core.asr_backend.youtube_captions import (
+    _CC_NON_SPEECH_RE,
+    _SPEAKER_MARKER_RE,
+    _UNCERTAIN_CAPTION_RE,
+    _UNCERTAIN_FRAGMENT_RE,
+)
 from core.tts_backend.gpt_sovits_tts import gpt_sovits_tts_for_videolingo
 from core.tts_backend.sf_fishtts import siliconflow_fish_tts_for_videolingo
 from core.tts_backend.openai_tts import openai_tts
@@ -25,6 +31,11 @@ def clean_text_for_tts(text):
     chars_to_remove = ['&', '®', '™', '©']
     for char in chars_to_remove:
         text = text.replace(char, '')
+    text = _UNCERTAIN_CAPTION_RE.sub(r"\1", text)  # custom
+    text = _UNCERTAIN_FRAGMENT_RE.sub("", text)  # custom
+    text = _SPEAKER_MARKER_RE.sub(" ", text)  # custom
+    text = _CC_NON_SPEECH_RE.sub(" ", text)  # custom
+    text = re.sub(r"\s{2,}", " ", text).strip()  # custom
     text = _LEADING_ELLIPSIS_RE.sub(r"\1", text)  # custom
     text = _TRAILING_ELLIPSIS_RE.sub(r"\1", text)  # custom
     text = re.sub(r"(\w)\.(md|py|json|ya?ml|ts|tsx|js|txt|sh|toml)\b", r"\1 \2", text, flags=re.IGNORECASE)  # custom

@@ -1,4 +1,4 @@
-import os, subprocess
+import os, re, subprocess
 import pandas as pd
 import math
 from typing import Dict, List, Tuple
@@ -189,6 +189,9 @@ def process_transcription(result: Dict) -> pd.DataFrame:
                 
             # ! For French, we need to convert guillemets to empty strings
             word["word"] = word["word"].replace('»', '').replace('«', '')
+            word["word"] = re.sub(r'(?:>>+|<<+)', '', word["word"]).strip()
+            if not word["word"]:
+                continue
             
             if 'start' not in word and 'end' not in word:
                 if all_words:
