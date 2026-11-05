@@ -300,14 +300,14 @@ class PlaylistRun:
         root = HISTORY / sanitize_filename(playlist.title)
         earlier = _earlier_videos(playlist.title)
         # Folders of other videos: of an earlier run, or on disk from a video that left the Playlist
-        taken = {v.get("folder") for v in earlier.values()} | (
+        taken = {v.get("folder") for v in earlier.values() if v.get("folder")} | (
             {p.name for p in root.iterdir()} if root.is_dir() else set())
         videos = []
         for video in playlist.videos:
             known = earlier.get(video.video_id, {})
             selected = video.available and video.video_id in selected_ids
             done = video.available and known.get("status") == DONE
-            folder = known.get("folder")
+            folder = known.get("folder") or None
             if folder is None and selected:
                 folder = sanitize_filename(f"{video.index} - {video.title}")
                 if folder in taken:
@@ -328,14 +328,25 @@ class PlaylistRun:
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("version") != 1:
             raise ValueError(f"Unknown version of {path}")
+        taken = {v.get("folder") for v in data["videos"] if v.get("folder")}
+        videos = []
+        for raw in data["videos"]:
+            v = VideoSnapshot(**raw)
+            if not v.folder and (v.selected or v.status in (RUNNING, DONE, FAILED) or v.partial):
+                folder = sanitize_filename(f"{v.index} - {v.title}")
+                if folder in taken:
+                    folder = sanitize_filename(f"{v.index} - {v.title} [{v.video_id}]")
+                taken.add(folder)
+                v = replace(v, folder=folder)
+            videos.append(v)
         run = cls(url=data["url"], title=data["title"], scope=data["scope"],
-                  videos=[VideoSnapshot(**v) for v in data["videos"]], ytdlp=ytdlp or Ytdlp(), plan=plan,
+                  videos=videos, ytdlp=ytdlp or Ytdlp(), plan=plan,
                   run_state=data["state"])
         # closed or crashed: the work of the video is in output/, unless another process runs it
         if run.run_state == RUN_RUNNING and not output_lock.is_locked():
             for position, video in enumerate(run.videos):
                 if video.status == RUNNING:
-                    _save_output(run.folder / video.folder)
+                    _save_output(run._video_folder(video))
                     run.videos[position] = replace(video, status=WAITING, partial=True)
             run._save(RUN_INTERRUPTED)
         return run
@@ -344,6 +355,12 @@ class PlaylistRun:
     def folder(self) -> Path:
         """``history/<playlist>/``, which holds the state file and the folder of each video."""
         return HISTORY / sanitize_filename(self.title)
+
+    def _video_folder(self, video: VideoSnapshot) -> Path:
+        """``history/<playlist>/<video.folder>``; refuses an empty or parent folder name."""
+        if not video.folder or video.folder in (".", ".."):
+            raise ValueError(f"Video #{video.index} ({video.video_id}) has an invalid history folder: {video.folder!r}")
+        return self.folder / video.folder
 
     @property
     def is_active(self) -> bool:
@@ -520,7 +537,7 @@ class PlaylistRun:
             if video.status == RUNNING:
                 self.videos[position] = replace(video, status=WAITING, partial=True)
                 try:
-                    _save_output(self.folder / video.folder)
+                    _save_output(self._video_folder(video))
                 except OSError:  # left in output/: Tiếp tục asks to empty it first
                     traceback.print_exc()
         self.current_step = ""
@@ -528,10 +545,11 @@ class PlaylistRun:
 
     def _process(self, position):
         video = self.videos[position]
+        destination = self._video_folder(video)
         self._set_status(position, RUNNING, failed_step="", error="")
         self.current_step = DOWNLOAD_STEP
         if video.partial:  # work of a stopped or crashed video; a video done before starts anew
-            merge_output(OUTPUT, source=self.folder / video.folder)
+            merge_output(OUTPUT, source=destination)
             self.videos[position] = replace(self.videos[position], partial=False)
         if not _has_media():
             self.ytdlp.download(video.url)
@@ -542,16 +560,16 @@ class PlaylistRun:
             step()
         self._check_cancel()
         self.current_step = SAVE_STEP
-        _save_output(self.folder / video.folder)
+        _save_output(destination)
         if not _output_empty():
-            raise RuntimeError(f"Some files of output/ could not be moved to {self.folder / video.folder}")
+            raise RuntimeError(f"Some files of output/ could not be moved to {destination}")
         self._set_status(position, DONE)
 
     def _fail(self, position, error):
         """Mark the video ``FAILED`` and move its unfinished work into its history folder."""
         traceback.print_exception(error)
         step, self.current_step = self.current_step, ""
-        destination = self.folder / self.videos[position].folder
+        destination = self._video_folder(self.videos[position])
         _save_output(destination)
         self._set_status(position, FAILED, failed_step=step, error=_short(error), partial=True)
         if not _output_empty():

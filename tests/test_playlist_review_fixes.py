@@ -256,3 +256,21 @@ def test_the_run_panel_lists_unavailable_and_unselected_done_videos(workspace):
     assert [row["#"] for row in rows] == [1, 2, 3, 4, 5]  # f6 is neither selected nor done
     assert [row[playlist_tab.t("Status")] for row in rows] == [labels[playlist_run.DONE], labels[playlist_run.UNAVAILABLE], labels[playlist_run.DONE],
                               labels[playlist_run.UNAVAILABLE], labels[playlist_run.UNAVAILABLE]]
+
+
+def test_load_unfinished_repairs_empty_folder_instead_of_using_playlist_root(workspace):
+    ROOT.mkdir(parents=True)
+    (ROOT / "playlist_run.json").write_text(json.dumps({
+        "version": 1, "url": URL, "title": "Talks: 2026/10", "scope": playlist_run.SUBTITLES,
+        "state": "running", "videos": [{
+            "video_id": "a1", "index": 1, "title": "First: intro?", "duration": 61, "selected": True,
+            "status": "running", "folder": "", "url": watch("a1")}],
+    }), encoding="utf-8")
+    Path("output").mkdir()
+    Path("output/First intro.mp4").write_bytes(b"")
+
+    run = playlist_run.load_unfinished()
+
+    assert run.videos[0].folder == "1 - First_ intro_"
+    assert (ROOT / "1 - First_ intro_" / "First intro.mp4").exists()
+    assert not (ROOT / "First intro.mp4").exists()
