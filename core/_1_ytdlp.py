@@ -57,6 +57,11 @@ def download_video_ytdlp(url, save_path='output', resolution='1080'):
     # Read Youtube Cookie File
     cookies_path = str(youtube.get("cookies_path") or "").strip().strip('"')
     if cookies_path:
+        if not os.path.isfile(cookies_path) and not os.path.isabs(cookies_path):
+            repo_root = os.environ.get("VIDEOLINGO_ROOT") or os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            candidate = os.path.join(repo_root, cookies_path)
+            if os.path.isfile(candidate):
+                cookies_path = candidate
         if not os.path.isfile(cookies_path):
             raise ValueError(f"Cookies file not found: {cookies_path}")
         ydl_opts["cookiefile"] = cookies_path

@@ -163,6 +163,11 @@ def youtube_options():
         options["proxy"] = proxy.strip()
     cookies_path = str(youtube.get("cookies_path") or "").strip().strip('"')
     if cookies_path:
+        if not os.path.isfile(cookies_path) and not os.path.isabs(cookies_path):
+            repo_root = Path(os.environ.get("VIDEOLINGO_ROOT") or Path(__file__).resolve().parents[1])
+            candidate = repo_root / cookies_path
+            if candidate.is_file():
+                cookies_path = str(candidate)
         if not os.path.isfile(cookies_path):
             raise ValueError(f"Cookies file not found: {cookies_path}")
         options["cookiefile"] = cookies_path
