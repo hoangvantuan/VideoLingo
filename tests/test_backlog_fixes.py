@@ -824,6 +824,7 @@ def _ytdlp_options(monkeypatch, tmp_path, youtube):
         def download(self, urls): pass
 
     monkeypatch.setattr(module, "load_key", lambda key: youtube)
+    monkeypatch.setattr(module, "load_key_or", lambda key, default: default)
     monkeypatch.setattr(module, "update_ytdlp", lambda: Download)
     monkeypatch.setattr(module, "find_video_files", lambda path: "synthetic.mp4")
     monkeypatch.setattr(module, "write_input_manifest", lambda *args, **kwargs: None)
