@@ -1,8 +1,9 @@
 """Stands in for `grok agent stdio`: speaks ACP JSON-RPC on stdin/stdout.
 
 The reply to a prompt is the text after "REPLY:" in it, else a JSON report of how the agent was started.
-Words in the prompt choose a behaviour: TOOL (reports a tool call), PERMISSION (asks the client),
-DIE (exits mid-turn), SLOW (answers after one second). `--auth-fail` refuses the cached token.
+Words in the prompt choose a behaviour: TOOL (reports a tool call and stops the turn once cancelled),
+PERMISSION (asks the client), DIE (exits mid-turn), SLOW (answers after one second), HANG (never answers),
+GARBAGE (writes lines that are not ACP messages first). `--auth-fail` refuses the cached token.
 """
 
 import itertools
@@ -17,6 +18,7 @@ write_lock = threading.Lock()
 client_replies = {}
 ids = itertools.count(1000)
 sessions = itertools.count(1)
+cancelled = {}
 
 
 def send(message):
@@ -40,6 +42,9 @@ def started_with():
     return json.dumps({
         "argv": sys.argv[1:],
         "config": json.loads(os.environ.get("GROK_CONFIG") or "{}"),
+        "pid": os.getpid(),
+        "home": os.environ.get("HOME"),
+        "grok_home": os.environ.get("GROK_HOME"),
         "claude_agents": os.environ.get("GROK_CLAUDE_AGENTS_ENABLED"),
         "backend_search": os.environ.get("GROK_BACKEND_SEARCH"),
     })
@@ -48,12 +53,23 @@ def started_with():
 def prompt_turn(request_id, params):
     session_id = params["sessionId"]
     text = params["prompt"][0]["text"]
+    if "HANG" in text:
+        return
+    if "GARBAGE" in text:
+        for line in ("42", "[1, 2]", '{"jsonrpc": "2.0", "method": "session/update"}', "not json"):
+            with write_lock:
+                sys.stdout.write(line + "\n")
+                sys.stdout.flush()
     if "SLOW" in text:
         time.sleep(1)
     if "DIE" in text:
         os._exit(3)
     if "TOOL" in text:
+        cancelled[session_id] = threading.Event()
         update(session_id, {"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "Web search", "kind": "search"})
+        if cancelled[session_id].wait(timeout=2):
+            send({"jsonrpc": "2.0", "id": request_id, "result": {"stopReason": "cancelled"}})
+            return
     reply = text.split("REPLY:", 1)[1] if "REPLY:" in text else started_with()
     if "PERMISSION" in text:
         answer = ask_client("session/request_permission", {
@@ -83,6 +99,8 @@ def main():
                 send({"jsonrpc": "2.0", "id": request_id, "result": {}})
         elif method == "session/new":
             send({"jsonrpc": "2.0", "id": request_id, "result": {"sessionId": f"s{next(sessions)}"}})
+        elif method == "session/cancel":
+            cancelled.get(params.get("sessionId"), threading.Event()).set()
         elif method == "session/prompt":
             threading.Thread(target=prompt_turn, args=(request_id, params), daemon=True).start()
         elif request_id is not None:

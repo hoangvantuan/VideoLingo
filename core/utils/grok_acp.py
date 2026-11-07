@@ -25,8 +25,10 @@ from core.utils.llm_profile import LLMAuthError, LLMProfileError
 PROFILE_FILE = Path(__file__).with_name("grok_agent_profile.md")
 SYSTEM_PROMPT = PROFILE_FILE.read_text(encoding="utf-8").split("---", 2)[2].strip()
 CWD = os.path.join(tempfile.gettempdir(), "videolingo-grok")  # kept empty: nothing for the agent to read
+# HOME the agent sees, kept empty: under the real one it loads the user's skills and Claude plugins' MCP servers
+AGENT_HOME = os.path.join(tempfile.gettempdir(), "videolingo-grok-home")
 PROMPT_TIMEOUT = 300
-SESSION_KEEP_SECONDS = 60  # the CLI writes a session's title and summary after the turn ends
+SESSION_KEEP_SECONDS = 60  # the CLI writes a session's summary after the turn ends
 # Grok reads the user's Claude/Cursor rules and offers web and session search unless told not to
 LEAN_ENV = {name: "false" for name in (
     "GROK_CLAUDE_AGENTS_ENABLED", "GROK_CLAUDE_RULES_ENABLED", "GROK_CLAUDE_SKILLS_ENABLED",
@@ -34,6 +36,13 @@ LEAN_ENV = {name: "false" for name in (
     "GROK_CURSOR_RULES_ENABLED", "GROK_CURSOR_SKILLS_ENABLED", "GROK_CURSOR_MCPS_ENABLED",
     "GROK_CURSOR_HOOKS_ENABLED", "GROK_BACKEND_SEARCH", "GROK_WEB_FETCH", "GROK_SESSION_SEARCH",
 )}
+# background model calls that only serve the interactive UI
+LEAN_FEATURES = {"title_refresh": False, "turn_summary": False, "session_recap": False}
+
+
+def grok_home():
+    """Where the CLI keeps its login and sessions; resolved here because the agent runs with another HOME."""
+    return Path(os.environ.get("GROK_HOME") or Path.home() / ".grok")
 
 
 class GrokAgentError(RuntimeError):
@@ -62,7 +71,8 @@ class AgentSpec:
         models = {"default": self.model}
         if self.reasoning_effort:
             models["default_reasoning_effort"] = self.reasoning_effort
-        return {**os.environ, **LEAN_ENV, "GROK_CONFIG": json.dumps({"models": models})}
+        return {**os.environ, **LEAN_ENV, "HOME": AGENT_HOME, "GROK_HOME": str(grok_home()),
+                "GROK_CONFIG": json.dumps({"models": models, "features": LEAN_FEATURES})}
 
 
 @dataclass
@@ -77,9 +87,9 @@ class _Agent:
             self.proc = subprocess.Popen(spec.argv(), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                          stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1,
                                          env=spec.env(), cwd=CWD)
-        except FileNotFoundError as error:
-            raise LLMProfileError(f"Grok CLI '{spec.command[0]}' not found: install it (https://docs.x.ai/build/cli) "
-                                  f"or set llm_profiles.<name>.command") from error
+        except OSError as error:
+            raise LLMProfileError(f"cannot run Grok CLI '{spec.command[0]}' ({error.strerror}): install it "
+                                  f"(https://docs.x.ai/build/cli) or set llm_profiles.<name>.command") from error
         self.ids = itertools.count(1)
         self.state_lock = threading.Lock()
         self.write_lock = threading.Lock()
@@ -115,6 +125,10 @@ class _Agent:
             result = self._request("session/prompt", {"sessionId": session_id,
                                                       "prompt": [{"type": "text", "text": prompt}]},
                                    timeout=PROMPT_TIMEOUT)
+        except GrokAgentError as error:
+            if turn.tool:  # the tool is the cause; the cancel only turned it into an error
+                raise GrokToolUseError(f"the Grok agent tried to use a tool ({turn.tool})") from error
+            raise
         finally:
             del self.turns[session_id]
             self._send_quietly({"jsonrpc": "2.0", "id": next(self.ids), "method": "session/close",
@@ -132,6 +146,7 @@ class _Agent:
             self.proc.wait(timeout=5)
         except Exception:
             self.proc.kill()
+            self.proc.wait()
 
     def _request(self, method, params, timeout=60):
         request_id = next(self.ids)
@@ -144,10 +159,8 @@ class _Agent:
         try:
             message = reply.result(timeout=timeout)
         except FutureTimeout:
-            with self.state_lock:
-                self.pending.pop(request_id, None)
-            if method == "session/prompt":
-                self._send_quietly({"jsonrpc": "2.0", "method": "session/cancel", "params": {"sessionId": params["sessionId"]}})
+            # a hung agent would hang every later request too: retire it, and the next request starts a new one
+            self.close()
             raise GrokAgentError(f"the Grok agent did not answer {method} within {timeout}s") from None
         if "error" in message:
             raise _RpcError(f"Grok agent refused {method}: {message['error'].get('message')}")
@@ -172,26 +185,33 @@ class _Agent:
         return GrokAgentError(f"the Grok agent exited (code {self.proc.poll()}){': ' + tail if tail else ''}")
 
     def _read_stdout(self):
-        for line in self.proc.stdout:
+        try:
+            for line in self.proc.stdout:
+                try:
+                    message = json.loads(line)
+                except ValueError:
+                    continue  # banners and update notices
+                if not isinstance(message, dict):
+                    continue
+                if "method" in message and "id" in message:
+                    self._answer(message)
+                elif message.get("method") == "session/update":
+                    self._on_update(message.get("params") or {})
+                elif "id" in message:
+                    with self.state_lock:
+                        reply = self.pending.pop(message["id"], None)
+                    if reply:
+                        reply.set_result(message)
+        finally:
+            with self.state_lock:
+                self.exited = True
+                waiting, self.pending = list(self.pending.values()), {}
             try:
-                message = json.loads(line)
-            except ValueError:
-                continue  # banners and update notices
-            if "method" in message and "id" in message:
-                self._answer(message)
-            elif message.get("method") == "session/update":
-                self._on_update(message["params"])
-            elif "id" in message:
-                with self.state_lock:
-                    reply = self.pending.pop(message["id"], None)
-                if reply:
-                    reply.set_result(message)
-        with self.state_lock:
-            self.exited = True
-            waiting, self.pending = list(self.pending.values()), {}
-        self.proc.wait()
-        for reply in waiting:
-            reply.set_exception(self._exit_error())
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self.close()
+            for reply in waiting:
+                reply.set_exception(self._exit_error())
 
     def _on_update(self, params):
         turn = self.turns.get(params.get("sessionId"))
@@ -208,7 +228,12 @@ class _Agent:
     def _answer(self, message):
         """The client offers no file system or terminal, and rejects every permission request."""
         if message["method"] == "session/request_permission":
-            options = (message.get("params") or {}).get("options") or []
+            params = message.get("params") or {}
+            turn = self.turns.get(params.get("sessionId"))
+            if turn is not None and turn.tool is None:
+                turn.tool = (params.get("toolCall") or {}).get("title") or "?"
+                self._send_quietly({"jsonrpc": "2.0", "method": "session/cancel", "params": {"sessionId": params["sessionId"]}})
+            options = params.get("options") or []
             reject = next((option for option in options if str(option.get("kind", "")).startswith("reject")), None)
             outcome = {"outcome": "selected", "optionId": reject["optionId"]} if reject else {"outcome": "cancelled"}
             self._send_quietly({"jsonrpc": "2.0", "id": message["id"], "result": {"outcome": outcome}})
@@ -222,7 +247,7 @@ def prune_sessions(active=()):
 
     The CLI keeps every ACP session (about 80 KB) even after session/close. CWD is VideoLingo's own,
     so everything stored under it is a finished request once it goes quiet, whichever run made it."""
-    root = Path(os.environ.get("GROK_HOME") or Path.home() / ".grok") / "sessions" / quote(CWD, safe="")
+    root = grok_home() / "sessions" / quote(CWD, safe="")
     if not root.is_dir():
         return
     cutoff = time.time() - SESSION_KEEP_SECONDS
@@ -248,12 +273,16 @@ def _agent(spec):
         agent = _AGENTS.get(spec)
         if agent is None or not agent.alive():
             os.makedirs(CWD, exist_ok=True)
+            os.makedirs(AGENT_HOME, exist_ok=True)
             agent = _AGENTS[spec] = _Agent(spec)
         return agent
 
 
 def completer(command, model, reasoning_effort) -> Callable[[str], str]:
-    spec = AgentSpec(tuple(shlex.split(command)), model, reasoning_effort)
+    argv = tuple(shlex.split(command))
+    if not argv:
+        raise LLMProfileError("llm_profiles.<name>.command is empty: set it to the Grok CLI, usually 'grok'")
+    spec = AgentSpec(argv, model, reasoning_effort)
     return lambda prompt: _agent(spec).complete(prompt)
 
 
