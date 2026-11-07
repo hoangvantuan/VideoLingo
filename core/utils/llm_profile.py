@@ -34,6 +34,7 @@ class LLMProfile:
     reasoning_effort: Optional[str]  # None: the parameter is not sent
     max_workers: Optional[int]  # None: the general max_workers applies
     auth_error_hint: Optional[str] = None  # appended to 401/403 errors of the provider
+    complete: Optional[Callable[[str], str]] = None  # prompt -> reply, replacing the OpenAI client; None: chat completions
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,7 @@ class ProviderSettings:
     credential: Callable[[], str]
     llm_support_json: Optional[bool] = None  # None: the profile's override, else api.llm_support_json
     auth_error_hint: Optional[str] = None
+    complete: Optional[Callable[[str], str]] = None
 
 
 def _custom_key():
@@ -101,10 +103,23 @@ def _vertex_provider(name, entry):
     )
 
 
+def _grok_provider(name, entry):
+    """Custom: the SuperGrok plan through the official Grok CLI over ACP, no key (docs/adr/0003-grok-acp.md)."""
+    from core.utils import grok_acp
+    return ProviderSettings(
+        base_url="",
+        normalize_base_url=False,
+        credential=lambda: "",  # the CLI holds the login
+        llm_support_json=False,
+        complete=grok_acp.completer(entry.get("command") or "grok", entry["model"], entry.get("reasoning_effort") or None),
+    )
+
+
 # provider -> resolve(name, entry) giving the ProviderSettings of the profile
 PROVIDERS = {
     "openrouter": _api_key_provider("https://openrouter.ai/api/v1"),
     "vertex": _vertex_provider,
+    "grok": _grok_provider,
 }
 
 
@@ -129,6 +144,7 @@ def _named_profile(name, entry):
         reasoning_effort=entry.get("reasoning_effort") or None,
         max_workers=entry.get("max_workers"),
         auth_error_hint=settings.auth_error_hint,
+        complete=settings.complete,
     )
 
 

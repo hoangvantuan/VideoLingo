@@ -48,6 +48,16 @@ llm_profiles:
     model: 'google/gemini-3.8-flash'
     # *Caps thinking tokens, billed as output
     reasoning_effort: low
+  # *Custom: the SuperGrok plan through the official Grok CLI (`grok agent stdio`), no key. Log in once with `grok`
+  grok:
+    provider: grok
+    # *grok-4.7, grok-4.6, grok-4.5; grok-4.7-build-fast counts double against the plan
+    model: 'grok-4.7'
+    reasoning_effort: low
+    # *One agent process serves every thread; keep it low to stay a normal user of the plan
+    max_workers: 3
+    # *Optional: command that starts the Grok CLI, default 'grok'
+    # command: 'grok'
 # *Custom: cap on parallel TTS requests (0 = same as max_workers). VieNeu-TTS serves 1 stream.
 tts_max_workers: 1
 

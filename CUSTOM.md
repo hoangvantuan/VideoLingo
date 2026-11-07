@@ -209,6 +209,7 @@ Mỗi profile bắt buộc có `provider` và `model`. Các khóa ghi đè còn 
 - **Lỗi cấu hình không bị thử lại:** profile không có, thiếu key, thiếu credential/project Google, request bị 401/403 là `ConfigError` (`core/utils/config_errors.py`); `except_handler` ném ngay thay vì thử lại 5 lần, nên thông báo hiện một lần.
 - **Cache không phân biệt model:** câu trả lời LLM được cache theo prompt trong `output/gpt_log`. Đổi profile rồi dịch lại cùng video sẽ dùng lại kết quả cũ; xóa `output/gpt_log` nếu muốn dịch lại bằng profile mới.
 - Thêm Provider mới: thêm một mục vào `PROVIDERS` trong `core/utils/llm_profile.py` (như `vertex` ở F8).
+- **Provider `grok` (gói SuperGrok, không cần key):** cài Grok CLI rồi chạy `grok` một lần để đăng nhập bằng grok.com, sau đó đặt `api.profile: grok`. Khâu Dịch gọi `grok agent stdio` của CLI chính hãng, mọi tool của agent đều bị tắt. Profile có sẵn trong `config.yaml` dùng `grok-4.7`, `reasoning_effort: low`, `max_workers: 3`. Không nên dùng `grok-4.7-build-fast` vì bị tính gấp đôi vào gói. Khóa tùy chọn `command` (mặc định `grok`) là lệnh khởi chạy CLI. Quyết định và giới hạn: [`docs/adr/0003-grok-acp.md`](docs/adr/0003-grok-acp.md).
 
 ## Cấu hình F8 (Vertex AI cho Khâu Dịch)
 

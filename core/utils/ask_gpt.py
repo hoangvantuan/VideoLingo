@@ -114,6 +114,9 @@ def ask_gpt(prompt, resp_type=None, valid_def=None, log_title="default"):
         rprint("use cache response")
         return cached
 
+    if profile.complete:  # custom: a transport other than chat completions (provider grok)
+        return _finish(profile.model, prompt, profile.complete(prompt), resp_type, valid_def, log_title)
+
     model = profile.model  # custom
     base_url = normalize_base_url(profile.base_url) if profile.normalize_base_url else profile.base_url  # custom
     client = OpenAI(api_key=api_key, base_url=base_url)
@@ -139,6 +142,11 @@ def ask_gpt(prompt, resp_type=None, valid_def=None, log_title="default"):
 
     # process and return full result
     resp_content = resp_raw.choices[0].message.content
+    return _finish(model, prompt, resp_content, resp_type, valid_def, log_title)
+
+
+def _finish(model, prompt, resp_content, resp_type, valid_def, log_title):
+    """Parse, validate and cache a reply."""
     if resp_type == "json":
         try:
             resp = parse_json_response(resp_content)
